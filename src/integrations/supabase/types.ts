@@ -266,6 +266,7 @@ export type Database = {
           id: string
           name: string
           potential_to_sign: number | null
+          preliminary_timeline: Json | null
           share_token: string | null
           updated_at: string
         }
@@ -276,6 +277,7 @@ export type Database = {
           id?: string
           name: string
           potential_to_sign?: number | null
+          preliminary_timeline?: Json | null
           share_token?: string | null
           updated_at?: string
         }
@@ -286,6 +288,7 @@ export type Database = {
           id?: string
           name?: string
           potential_to_sign?: number | null
+          preliminary_timeline?: Json | null
           share_token?: string | null
           updated_at?: string
         }

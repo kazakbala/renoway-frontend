@@ -227,6 +227,13 @@ const ProjectEditor = () => {
       }
 
       toast({ title: "Project saved successfully" });
+      
+      // Generate timeline in background (non-blocking)
+      supabase.functions
+        .invoke('generate-timeline', { body: { projectId } })
+        .then(() => console.log('Timeline generation started'))
+        .catch(err => console.error('Timeline generation error:', err));
+      
       navigate("/dashboard/projects");
     } catch (error: any) {
       toast({
@@ -240,27 +247,52 @@ const ProjectEditor = () => {
   };
 
   const handleExportPDF = async () => {
-    const client = clients.find((c) => c.id === clientId);
-    await exportToPDF({
-      projectName,
-      client: client
-        ? { 
-            full_name: client.full_name || "",
-            email: client.email || "", 
-            phone: client.phone || "" 
-          }
-        : { 
-            full_name: "",
-            email: "", 
-            phone: "" 
-          },
-      blocks: blocks.map((block) => ({
-        name: block.name,
-        works: block.works,
-        subtotal: calculateBlockTotal(block),
-      })),
-      grandTotal: calculateGrandTotal(),
-    });
+    if (!id) {
+      toast({
+        title: "Please save the project first",
+        description: "You need to save the project before exporting to PDF",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Fetch project to get timeline
+      const { data: project } = await supabase
+        .from("projects")
+        .select("preliminary_timeline")
+        .eq("id", id)
+        .single();
+
+      const client = clients.find((c) => c.id === clientId);
+      await exportToPDF({
+        projectName,
+        client: client
+          ? { 
+              full_name: client.full_name || "",
+              email: client.email || "", 
+              phone: client.phone || "" 
+            }
+          : { 
+              full_name: "",
+              email: "", 
+              phone: "" 
+            },
+        blocks: blocks.map((block) => ({
+          name: block.name,
+          works: block.works,
+          subtotal: calculateBlockTotal(block),
+        })),
+        grandTotal: calculateGrandTotal(),
+        timeline: project?.preliminary_timeline as any || undefined,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error exporting PDF",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const generateShareLink = async () => {

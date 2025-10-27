@@ -1,1 +1,4 @@
 project_id = "iiimfvcimyxruclaupro"
+
+[functions.generate-timeline]
+verify_jwt = false
