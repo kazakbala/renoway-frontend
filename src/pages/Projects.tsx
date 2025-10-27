@@ -13,11 +13,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, FileText, Copy, Pencil, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 interface Project {
   id: string;
   name: string;
   created_at: string;
+  potential_to_sign: number;
   clients: {
     full_name: string | null;
     email: string | null;
@@ -68,6 +70,13 @@ const Projects = () => {
     }
   };
 
+  const getPotentialBadgeColor = (percentage: number) => {
+    if (percentage === 0) return "bg-background border text-foreground";
+    if (percentage <= 33) return "bg-red-500 text-white border-red-500";
+    if (percentage <= 66) return "bg-yellow-500 text-white border-yellow-500";
+    return "bg-green-500 text-white border-green-500";
+  };
+
   const handleDuplicate = async (project: Project) => {
     // Load project details
     const { data: blocks } = await supabase
@@ -85,6 +94,7 @@ const Projects = () => {
         {
           name: `${project.name} (Copy)`,
           client_id: project.clients ? (project as any).client_id : null,
+          potential_to_sign: project.potential_to_sign || 0,
         },
       ])
       .select()
@@ -149,6 +159,7 @@ const Projects = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[120px]">Potential</TableHead>
               <TableHead>Project Name</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Created</TableHead>
@@ -158,13 +169,18 @@ const Projects = () => {
           <TableBody>
             {projects.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No projects yet. Create your first project to get started.
                 </TableCell>
               </TableRow>
             ) : (
               projects.map((project) => (
                 <TableRow key={project.id}>
+                  <TableCell>
+                    <Badge className={getPotentialBadgeColor(project.potential_to_sign || 0)}>
+                      {project.potential_to_sign || 0}%
+                    </Badge>
+                  </TableCell>
                   <TableCell className="font-medium">{project.name}</TableCell>
                   <TableCell>
                     {project.clients?.full_name || project.clients?.email || project.clients?.phone || "-"}

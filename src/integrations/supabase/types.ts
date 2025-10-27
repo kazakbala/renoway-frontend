@@ -265,6 +265,7 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
+          potential_to_sign: number | null
           share_token: string | null
           updated_at: string
         }
@@ -274,6 +275,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name: string
+          potential_to_sign?: number | null
           share_token?: string | null
           updated_at?: string
         }
@@ -283,6 +285,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
+          potential_to_sign?: number | null
           share_token?: string | null
           updated_at?: string
         }

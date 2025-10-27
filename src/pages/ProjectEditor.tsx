@@ -18,6 +18,7 @@ import { exportToPDF } from "@/lib/pdf-export";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Slider } from "@/components/ui/slider";
 
 interface Client {
   id: string;
@@ -66,6 +67,7 @@ const ProjectEditor = () => {
   const [loading, setLoading] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [potentialToSign, setPotentialToSign] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -91,6 +93,7 @@ const ProjectEditor = () => {
         setProjectName(project.name);
         setClientId(project.client_id);
         setShareToken(project.share_token);
+        setPotentialToSign(project.potential_to_sign || 0);
 
         const { data: projectBlocks } = await supabase
           .from("project_blocks")
@@ -178,12 +181,12 @@ const ProjectEditor = () => {
       let projectId = id;
 
       if (id) {
-        await supabase.from("projects").update({ name: projectName, client_id: clientId }).eq("id", id);
+        await supabase.from("projects").update({ name: projectName, client_id: clientId, potential_to_sign: potentialToSign }).eq("id", id);
         await supabase.from("project_blocks").delete().eq("project_id", id);
       } else {
         const { data: newProject, error } = await supabase
           .from("projects")
-          .insert([{ name: projectName, client_id: clientId }])
+          .insert([{ name: projectName, client_id: clientId, potential_to_sign: potentialToSign }])
           .select()
           .single();
 
@@ -359,6 +362,18 @@ const ProjectEditor = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Potential to Sign: {potentialToSign}%</Label>
+                <Slider
+                  value={[potentialToSign]}
+                  onValueChange={(value) => setPotentialToSign(value[0])}
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="w-full"
+                />
               </div>
 
               <Card>
