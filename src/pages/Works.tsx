@@ -1,0 +1,389 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, Pencil, Trash2, Tag } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Work {
+  id: string;
+  category_id: string | null;
+  name: string;
+  description: string | null;
+  unit_type: string;
+  price_per_unit: number;
+  categories?: Category;
+}
+
+const Works = () => {
+  const { toast } = useToast();
+  const [works, setWorks] = useState<Work[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [open, setOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [editingWork, setEditingWork] = useState<Work | null>(null);
+  const [newCategory, setNewCategory] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    unit_type: "m2",
+    price_per_unit: "",
+    category_id: "",
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    const [worksRes, categoriesRes] = await Promise.all([
+      supabase.from("works").select("*, categories(*)").order("created_at", { ascending: false }),
+      supabase.from("categories").select("*").order("name"),
+    ]);
+
+    if (worksRes.error) {
+      toast({
+        title: "Error loading works",
+        description: worksRes.error.message,
+        variant: "destructive",
+      });
+    } else {
+      setWorks(worksRes.data || []);
+    }
+
+    if (categoriesRes.error) {
+      toast({
+        title: "Error loading categories",
+        description: categoriesRes.error.message,
+        variant: "destructive",
+      });
+    } else {
+      setCategories(categoriesRes.data || []);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const workData = {
+      ...formData,
+      price_per_unit: parseFloat(formData.price_per_unit),
+      category_id: formData.category_id || null,
+    };
+
+    if (editingWork) {
+      const { error } = await supabase
+        .from("works")
+        .update(workData)
+        .eq("id", editingWork.id);
+
+      if (error) {
+        toast({
+          title: "Error updating work",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Work updated successfully" });
+        loadData();
+        handleClose();
+      }
+    } else {
+      const { error } = await supabase.from("works").insert([workData]);
+
+      if (error) {
+        toast({
+          title: "Error creating work",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Work created successfully" });
+        loadData();
+        handleClose();
+      }
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this work?")) return;
+
+    const { error } = await supabase.from("works").delete().eq("id", id);
+
+    if (error) {
+      toast({
+        title: "Error deleting work",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Work deleted successfully" });
+      loadData();
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategory.trim()) return;
+
+    const { error } = await supabase.from("categories").insert([{ name: newCategory }]);
+
+    if (error) {
+      toast({
+        title: "Error creating category",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Category created successfully" });
+      setNewCategory("");
+      setCategoryOpen(false);
+      loadData();
+    }
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setEditingWork(null);
+    setFormData({
+      name: "",
+      description: "",
+      unit_type: "m2",
+      price_per_unit: "",
+      category_id: "",
+    });
+  };
+
+  const handleEdit = (work: Work) => {
+    setEditingWork(work);
+    setFormData({
+      name: work.name,
+      description: work.description || "",
+      unit_type: work.unit_type,
+      price_per_unit: work.price_per_unit.toString(),
+      category_id: work.category_id || "",
+    });
+    setOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Works</h2>
+          <p className="text-muted-foreground">Manage your works catalog and categories</p>
+        </div>
+        <div className="flex gap-2">
+          <Dialog open={categoryOpen} onOpenChange={setCategoryOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Tag className="w-4 h-4 mr-2" />
+                Categories
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manage Categories</DialogTitle>
+                <DialogDescription>Add categories to organize your works</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    placeholder="Category name"
+                  />
+                  <Button onClick={handleAddCategory}>Add</Button>
+                </div>
+                <div className="space-y-2">
+                  {categories.map((cat) => (
+                    <div key={cat.id} className="flex items-center justify-between p-2 border rounded">
+                      <span>{cat.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Work
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>{editingWork ? "Edit Work" : "Add New Work"}</DialogTitle>
+                <DialogDescription>Enter work details including pricing and unit type</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Name</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <Select
+                        value={formData.category_id}
+                        onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="unit_type">Unit Type</Label>
+                      <Select
+                        value={formData.unit_type}
+                        onValueChange={(value) => setFormData({ ...formData, unit_type: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="m2">m² (Square Meter)</SelectItem>
+                          <SelectItem value="m">m (Meter)</SelectItem>
+                          <SelectItem value="pc">pc (Piece)</SelectItem>
+                          <SelectItem value="set">Set</SelectItem>
+                          <SelectItem value="hr">Hour</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Price per Unit (AED)</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        step="0.01"
+                        value={formData.price_per_unit}
+                        onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={handleClose}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">{editingWork ? "Update" : "Create"}</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Unit</TableHead>
+              <TableHead>Price (AED)</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {works.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  No works yet. Add your first work to get started.
+                </TableCell>
+              </TableRow>
+            ) : (
+              works.map((work) => (
+                <TableRow key={work.id}>
+                  <TableCell className="font-medium">{work.name}</TableCell>
+                  <TableCell>
+                    {work.categories ? (
+                      <Badge variant="outline">{work.categories.name}</Badge>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate">{work.description || "-"}</TableCell>
+                  <TableCell>{work.unit_type}</TableCell>
+                  <TableCell>{work.price_per_unit.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(work)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(work.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+};
+
+export default Works;
