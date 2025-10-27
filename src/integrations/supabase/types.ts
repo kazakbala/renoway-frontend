@@ -59,6 +59,89 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_items: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_id: string
+          price_per_unit: number
+          project_work_id: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_id: string
+          price_per_unit: number
+          project_work_id: string
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          price_per_unit?: number
+          project_work_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_project_work_id_fkey"
+            columns: ["project_work_id"]
+            isOneToOne: false
+            referencedRelation: "project_works"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_date: string
+          invoice_number: string
+          notes: string | null
+          project_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_date?: string
+          invoice_number: string
+          notes?: string | null
+          project_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          notes?: string | null
+          project_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

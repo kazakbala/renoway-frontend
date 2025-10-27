@@ -10,6 +10,8 @@ import Clients from "./pages/Clients";
 import Works from "./pages/Works";
 import Projects from "./pages/Projects";
 import ProjectEditor from "./pages/ProjectEditor";
+import Invoices from "./pages/Invoices";
+import InvoiceEditor from "./pages/InvoiceEditor";
 import DashboardLayout from "@/components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
@@ -57,6 +59,8 @@ const App = () => (
               <Route path="projects" element={<Projects />} />
               <Route path="projects/create" element={<ProjectEditor />} />
               <Route path="projects/:id" element={<ProjectEditor />} />
+              <Route path="invoices" element={<Invoices />} />
+              <Route path="invoices/create" element={<InvoiceEditor />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
