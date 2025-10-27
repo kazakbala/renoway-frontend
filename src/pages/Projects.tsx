@@ -19,6 +19,7 @@ interface Project {
   name: string;
   created_at: string;
   clients: {
+    full_name: string | null;
     email: string | null;
     phone: string | null;
   };
@@ -166,7 +167,7 @@ const Projects = () => {
                 <TableRow key={project.id}>
                   <TableCell className="font-medium">{project.name}</TableCell>
                   <TableCell>
-                    {project.clients?.email || project.clients?.phone || "-"}
+                    {project.clients?.full_name || project.clients?.email || project.clients?.phone || "-"}
                   </TableCell>
                   <TableCell>
                     {new Date(project.created_at).toLocaleDateString()}

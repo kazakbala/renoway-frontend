@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface Client {
   id: string;
+  full_name: string | null;
   email: string | null;
   phone: string | null;
 }
@@ -226,8 +227,16 @@ const ProjectEditor = () => {
     await exportToPDF({
       projectName,
       client: client
-        ? { email: client.email || "", phone: client.phone || "" }
-        : { email: "", phone: "" },
+        ? { 
+            full_name: client.full_name || "",
+            email: client.email || "", 
+            phone: client.phone || "" 
+          }
+        : { 
+            full_name: "",
+            email: "", 
+            phone: "" 
+          },
       blocks: blocks.map((block) => ({
         name: block.name,
         works: block.works,
@@ -286,7 +295,7 @@ const ProjectEditor = () => {
                 <SelectContent>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
-                      {client.email || client.phone || "Unknown"}
+                      {client.full_name || client.email || client.phone || "Unknown"}
                     </SelectItem>
                   ))}
                 </SelectContent>

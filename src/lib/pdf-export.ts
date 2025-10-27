@@ -15,6 +15,7 @@ interface Block {
 interface ExportData {
   projectName: string;
   client: {
+    full_name: string;
     email: string;
     phone: string;
   };
@@ -231,6 +232,10 @@ export const exportToPDF = async (data: ExportData) => {
         
         <div class="info-section">
           <div>
+            <div class="info-item">
+              <div class="info-label">Client Name</div>
+              <div class="info-value">${data.client.full_name || "N/A"}</div>
+            </div>
             <div class="info-item">
               <div class="info-label">Client Email</div>
               <div class="info-value">${data.client.email || "N/A"}</div>

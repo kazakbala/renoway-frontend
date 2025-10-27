@@ -25,6 +25,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface Client {
   id: string;
+  full_name: string | null;
   phone: string | null;
   email: string | null;
   created_at: string;
@@ -35,7 +36,7 @@ const Clients = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [formData, setFormData] = useState({ phone: "", email: "" });
+  const [formData, setFormData] = useState({ full_name: "", phone: "", email: "" });
 
   useEffect(() => {
     loadClients();
@@ -115,12 +116,13 @@ const Clients = () => {
   const handleClose = () => {
     setOpen(false);
     setEditingClient(null);
-    setFormData({ phone: "", email: "" });
+    setFormData({ full_name: "", phone: "", email: "" });
   };
 
   const handleEdit = (client: Client) => {
     setEditingClient(client);
     setFormData({
+      full_name: client.full_name || "",
       phone: client.phone || "",
       email: client.email || "",
     });
@@ -152,6 +154,17 @@ const Clients = () => {
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full Name</Label>
+                  <Input
+                    id="full_name"
+                    value={formData.full_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, full_name: e.target.value })
+                    }
+                    placeholder="John Doe"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
                   <Input
@@ -193,6 +206,7 @@ const Clients = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Created</TableHead>
@@ -202,13 +216,14 @@ const Clients = () => {
           <TableBody>
             {clients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No clients yet. Add your first client to get started.
                 </TableCell>
               </TableRow>
             ) : (
               clients.map((client) => (
                 <TableRow key={client.id}>
+                  <TableCell className="font-medium">{client.full_name || "-"}</TableCell>
                   <TableCell>{client.phone || "-"}</TableCell>
                   <TableCell>{client.email || "-"}</TableCell>
                   <TableCell>
