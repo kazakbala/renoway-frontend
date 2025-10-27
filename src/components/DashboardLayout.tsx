@@ -62,9 +62,12 @@ function AppSidebar() {
                         to={item.path}
                         end
                         className={({ isActive }) =>
-                          isActive
-                            ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                            : ""
+                          cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
+                            isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-accent"
+                          )
                         }
                       >
                         <Icon className="w-5 h-5" />
