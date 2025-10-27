@@ -446,7 +446,7 @@ const ProjectForm = () => {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>
-                  {room.room_types.name} {roomIndex + 1}
+                  Room {roomIndex + 1}
                   {room.room_types && ` - ${room.room_types.name}`}
                 </CardTitle>
                 <Button
