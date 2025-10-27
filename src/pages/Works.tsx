@@ -29,8 +29,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface Category {
   id: string;
@@ -55,6 +63,9 @@ const Works = () => {
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [editingWork, setEditingWork] = useState<Work | null>(null);
   const [newCategory, setNewCategory] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -197,6 +208,26 @@ const Works = () => {
     setOpen(true);
   };
 
+  // Filter works based on search query
+  const filteredWorks = works.filter((work) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      work.name.toLowerCase().includes(query) ||
+      work.description?.toLowerCase().includes(query) ||
+      work.categories?.name.toLowerCase().includes(query)
+    );
+  });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredWorks.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedWorks = filteredWorks.slice(startIndex, startIndex + itemsPerPage);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -333,6 +364,21 @@ const Works = () => {
         </div>
       </div>
 
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search works by name, description, or category..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {filteredWorks.length} work{filteredWorks.length !== 1 ? 's' : ''} found
+        </div>
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -346,14 +392,14 @@ const Works = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {works.length === 0 ? (
+            {paginatedWorks.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  No works yet. Add your first work to get started.
+                  {searchQuery ? "No works found matching your search." : "No works yet. Add your first work to get started."}
                 </TableCell>
               </TableRow>
             ) : (
-              works.map((work) => (
+              paginatedWorks.map((work) => (
                 <TableRow key={work.id}>
                   <TableCell className="font-medium">{work.name}</TableCell>
                   <TableCell>
@@ -382,6 +428,57 @@ const Works = () => {
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+            
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+              // Show first page, last page, current page, and pages around current
+              const showPage = page === 1 || 
+                              page === totalPages || 
+                              (page >= currentPage - 1 && page <= currentPage + 1);
+              
+              if (!showPage) {
+                // Show ellipsis
+                if (page === currentPage - 2 || page === currentPage + 2) {
+                  return (
+                    <PaginationItem key={page}>
+                      <span className="px-4">...</span>
+                    </PaginationItem>
+                  );
+                }
+                return null;
+              }
+
+              return (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
+
+            <PaginationItem>
+              <PaginationNext 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
     </div>
   );
 };
