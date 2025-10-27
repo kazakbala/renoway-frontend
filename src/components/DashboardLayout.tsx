@@ -1,122 +1,129 @@
-import { useState } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Building2, Users, Wrench, FolderKanban, FileText, LogOut, Menu, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { Building2, Users, Wrench, FolderKanban, FileText, LogOut } from "lucide-react";
 
-const DashboardLayout = () => {
-  const location = useLocation();
+const navItems = [
+  { path: "/dashboard", label: "Overview", icon: Building2 },
+  { path: "/dashboard/clients", label: "Clients", icon: Users },
+  { path: "/dashboard/works", label: "Works", icon: Wrench },
+  { path: "/dashboard/projects", label: "Projects", icon: FolderKanban },
+  { path: "/dashboard/invoices", label: "Invoices", icon: FileText },
+];
+
+function AppSidebar() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { state } = useSidebar();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
 
-  const navItems = [
-    { path: "/dashboard", label: "Overview", icon: Building2 },
-    { path: "/dashboard/clients", label: "Clients", icon: Users },
-    { path: "/dashboard/works", label: "Works", icon: Wrench },
-    { path: "/dashboard/projects", label: "Projects", icon: FolderKanban },
-    { path: "/dashboard/invoices", label: "Invoices", icon: FileText },
-  ];
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2 py-4">
+          <div className="p-2 bg-primary rounded-lg">
+            <Building2 className="w-5 h-5 text-primary-foreground" />
+          </div>
+          {state !== "collapsed" && (
+            <span className="font-bold text-lg">Renoway</span>
+          )}
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.path}
+                        end
+                        className={({ isActive }) =>
+                          isActive
+                            ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                            : ""
+                        }
+                      >
+                        <Icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <div className="p-2">
+          {state !== "collapsed" && (
+            <div className="mb-3 px-2">
+              <p className="text-sm font-medium truncate">{user?.email}</p>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={handleSignOut}
+            size={state === "collapsed" ? "icon" : "default"}
+          >
+            <LogOut className="w-4 h-4" />
+            {state !== "collapsed" && <span className="ml-2">Sign Out</span>}
+          </Button>
+        </div>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+
+const DashboardLayout = () => {
+  const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed left-0 top-0 z-40 h-screen transition-transform bg-card border-r",
-          sidebarOpen ? "w-64" : "w-0 -translate-x-full"
-        )}
-      >
-        <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between p-6 border-b">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-primary rounded-lg">
-                <Building2 className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-lg">Renoway</span>
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col">
+          <header className="sticky top-0 z-30 bg-card border-b p-4">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger />
+              <h1 className="text-xl font-semibold">
+                {navItems.find((item) => item.path === location.pathname)?.label || "Dashboard"}
+              </h1>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden"
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
+          </header>
 
-          <nav className="flex-1 p-4 space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
-                  )}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="p-4 border-t">
-            <div className="mb-3 px-3">
-              <p className="text-sm font-medium">{user?.email}</p>
-            </div>
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={handleSignOut}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
+          <main className="flex-1 p-6">
+            <Outlet />
+          </main>
         </div>
-      </aside>
-
-      {/* Main Content */}
-      <div
-        className={cn(
-          "transition-all",
-          sidebarOpen ? "lg:ml-64" : "ml-0"
-        )}
-      >
-        <header className="sticky top-0 z-30 bg-card border-b p-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
-            <h1 className="text-xl font-semibold">
-              {navItems.find((item) => item.path === location.pathname)?.label || "Dashboard"}
-            </h1>
-          </div>
-        </header>
-
-        <main className="p-6">
-          <Outlet />
-        </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 
