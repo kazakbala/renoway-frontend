@@ -136,6 +136,7 @@ export type Database = {
       }
       works: {
         Row: {
+          calculation_base: string
           category_id: string | null
           created_at: string
           description: string | null
@@ -146,6 +147,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          calculation_base?: string
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -156,6 +158,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          calculation_base?: string
           category_id?: string | null
           created_at?: string
           description?: string | null
