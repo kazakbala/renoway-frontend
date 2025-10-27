@@ -413,8 +413,8 @@ const ProjectEditor = () => {
       ...timeline,
       {
         phase: timeline.length + 1,
-        work: "",
-        durationDays: "",
+        workName: "",
+        durationDays: 7,
       },
     ]);
   };
@@ -721,7 +721,7 @@ const ProjectEditor = () => {
                                 type="number"
                                 value={item.phase || ""}
                                 onChange={(e) =>
-                                  updateTimelineItem(index, "phase", parseInt(e.target.value) || "")
+                                  updateTimelineItem(index, "phase", parseInt(e.target.value) || 1)
                                 }
                                 placeholder="1"
                                 min="1"
@@ -730,7 +730,7 @@ const ProjectEditor = () => {
                             <div className="col-span-2">
                               <Label className="text-xs">Work</Label>
                               <Input
-                                value={item.work || ""}
+                                value={item.workName || ""}
                                 readOnly
                                 className="bg-muted"
                               />
@@ -741,7 +741,7 @@ const ProjectEditor = () => {
                                 type="number"
                                 value={item.durationDays || ""}
                                 onChange={(e) =>
-                                  updateTimelineItem(index, "durationDays", e.target.value)
+                                  updateTimelineItem(index, "durationDays", parseInt(e.target.value) || 0)
                                 }
                                 placeholder="7"
                                 min="1"

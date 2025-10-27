@@ -14,7 +14,7 @@ interface Block {
 
 interface TimelineItem {
   phase: number;
-  work: string;
+  workName: string;
   durationDays: number;
 }
 
@@ -393,7 +393,7 @@ export const exportToPDF = async (data: ExportData) => {
                 .map(item => `
                 <tr>
                   <td><span class="phase-badge">Phase ${item.phase}</span></td>
-                  <td><strong>${item.work}</strong></td>
+                  <td><strong>${item.workName}</strong></td>
                   <td>${item.durationDays} days</td>
                 </tr>
               `).join('')}

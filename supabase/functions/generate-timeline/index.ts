@@ -75,11 +75,11 @@ Deno.serve(async (req) => {
 [
   {
     "phase": 1,
-    "work": "Work item name",
+    "workName": "Work item name",
     "durationDays": 7
   }
 ]
-Organize work items in logical construction sequence with phase numbers (1, 2, 3, etc.) indicating the order of execution. Duration should be in days.`
+Organize work items in logical construction sequence with phase numbers (1, 2, 3, etc.) indicating the order of execution. Duration should be a number in days.`
           },
           {
             role: 'user',
@@ -101,10 +101,10 @@ Organize work items in logical construction sequence with phase numbers (1, 2, 3
                       type: 'object',
                       properties: {
                         phase: { type: 'number' },
-                        work: { type: 'string' },
+                        workName: { type: 'string' },
                         durationDays: { type: 'number' }
                       },
-                      required: ['phase', 'work', 'durationDays'],
+                      required: ['phase', 'workName', 'durationDays'],
                       additionalProperties: false
                     }
                   }
