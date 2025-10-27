@@ -80,6 +80,131 @@ export type Database = {
         }
         Relationships: []
       }
+      project_room_works: {
+        Row: {
+          created_at: string
+          id: string
+          is_selected: boolean
+          project_room_id: string
+          quantity: number
+          work_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_selected?: boolean
+          project_room_id: string
+          quantity?: number
+          work_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_selected?: boolean
+          project_room_id?: string
+          quantity?: number
+          work_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_room_works_project_room_id_fkey"
+            columns: ["project_room_id"]
+            isOneToOne: false
+            referencedRelation: "project_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_room_works_work_id_fkey"
+            columns: ["work_id"]
+            isOneToOne: false
+            referencedRelation: "works"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_rooms: {
+        Row: {
+          created_at: string
+          floor_area: number | null
+          id: string
+          opening_area: number | null
+          perimeter: number | null
+          project_id: string
+          room_type_id: string
+          wall_area: number | null
+        }
+        Insert: {
+          created_at?: string
+          floor_area?: number | null
+          id?: string
+          opening_area?: number | null
+          perimeter?: number | null
+          project_id: string
+          room_type_id: string
+          wall_area?: number | null
+        }
+        Update: {
+          created_at?: string
+          floor_area?: number | null
+          id?: string
+          opening_area?: number | null
+          perimeter?: number | null
+          project_id?: string
+          room_type_id?: string
+          wall_area?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_rooms_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_rooms_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       room_types: {
         Row: {
           created_at: string

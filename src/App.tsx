@@ -8,6 +8,8 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import Works from "./pages/Works";
+import Projects from "./pages/Projects";
+import ProjectForm from "./pages/ProjectForm";
 import DashboardLayout from "@/components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
@@ -52,6 +54,9 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="clients" element={<Clients />} />
               <Route path="works" element={<Works />} />
+              <Route path="projects" element={<Projects />} />
+              <Route path="projects/new" element={<ProjectForm />} />
+              <Route path="projects/:id" element={<ProjectForm />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
