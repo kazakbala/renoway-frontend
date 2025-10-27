@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Trash2, FileDown, Search, Link2, Copy, Calendar } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileDown, Search, Link2, Copy, Calendar, Sparkles } from "lucide-react";
 import { exportToPDF } from "@/lib/pdf-export";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -68,6 +68,8 @@ const ProjectEditor = () => {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [potentialToSign, setPotentialToSign] = useState(0);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [isGeneratingTimeline, setIsGeneratingTimeline] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -94,6 +96,7 @@ const ProjectEditor = () => {
         setClientId(project.client_id);
         setShareToken(project.share_token);
         setPotentialToSign(project.potential_to_sign || 0);
+        setTimeline(Array.isArray(project.preliminary_timeline) ? project.preliminary_timeline : []);
 
         const { data: projectBlocks } = await supabase
           .from("project_blocks")
@@ -227,13 +230,6 @@ const ProjectEditor = () => {
       }
 
       toast({ title: "Project saved successfully" });
-      
-      // Generate timeline in background (non-blocking)
-      supabase.functions
-        .invoke('generate-timeline', { body: { projectId } })
-        .then(() => console.log('Timeline generation started'))
-        .catch(err => console.error('Timeline generation error:', err));
-      
       navigate("/dashboard/projects");
     } catch (error: any) {
       toast({
@@ -338,6 +334,92 @@ const ProjectEditor = () => {
       (work.description || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleGenerateTimeline = async () => {
+    if (!id) {
+      toast({
+        title: "Please save the project first",
+        description: "You need to save the project before generating a timeline",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingTimeline(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-timeline', { 
+        body: { projectId: id } 
+      });
+      
+      if (error) throw error;
+      
+      // Fetch the updated project to get the timeline
+      const { data: project } = await supabase
+        .from("projects")
+        .select("preliminary_timeline")
+        .eq("id", id)
+        .single();
+      
+      if (project?.preliminary_timeline) {
+        setTimeline(Array.isArray(project.preliminary_timeline) ? project.preliminary_timeline : []);
+        toast({ title: "Timeline generated successfully" });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error generating timeline",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingTimeline(false);
+    }
+  };
+
+  const handleSaveTimeline = async () => {
+    if (!id) return;
+
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .update({ preliminary_timeline: timeline })
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      toast({ title: "Timeline saved successfully" });
+    } catch (error: any) {
+      toast({
+        title: "Error saving timeline",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateTimelineItem = (index: number, field: string, value: any) => {
+    const newTimeline = [...timeline];
+    newTimeline[index] = {
+      ...newTimeline[index],
+      [field]: value,
+    };
+    setTimeline(newTimeline);
+  };
+
+  const removeTimelineItem = (index: number) => {
+    setTimeline(timeline.filter((_, i) => i !== index));
+  };
+
+  const addTimelineItem = () => {
+    setTimeline([
+      ...timeline,
+      {
+        phase: "",
+        startDate: "",
+        endDate: "",
+        duration: "",
+      },
+    ]);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -364,8 +446,9 @@ const ProjectEditor = () => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="details">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="details">Project Details</TabsTrigger>
+              <TabsTrigger value="timeline" disabled={!id}>Preliminary Timeline</TabsTrigger>
               <TabsTrigger value="progress" disabled={!id}>Progress Tracking</TabsTrigger>
             </TabsList>
 
@@ -585,6 +668,114 @@ const ProjectEditor = () => {
                   </p>
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="timeline" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5" />
+                      Preliminary Timeline
+                    </CardTitle>
+                    <div className="flex gap-2">
+                      {timeline.length > 0 && (
+                        <Button onClick={handleSaveTimeline} variant="outline">
+                          Save Timeline
+                        </Button>
+                      )}
+                      <Button 
+                        onClick={handleGenerateTimeline} 
+                        disabled={isGeneratingTimeline}
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        {isGeneratingTimeline ? "Generating..." : "Generate with AI"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {isGeneratingTimeline && (
+                    <div className="text-center py-8">
+                      <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                      <p className="text-muted-foreground">Generating timeline with AI...</p>
+                    </div>
+                  )}
+                  
+                  {!isGeneratingTimeline && timeline.length === 0 && (
+                    <div className="text-center py-8">
+                      <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-muted-foreground mb-4">
+                        No timeline generated yet. Click "Generate with AI" to create one.
+                      </p>
+                    </div>
+                  )}
+
+                  {!isGeneratingTimeline && timeline.length > 0 && (
+                    <div className="space-y-4">
+                      {timeline.map((item: any, index: number) => (
+                        <div key={index} className="border rounded-lg p-4 space-y-3">
+                          <div className="grid grid-cols-4 gap-3">
+                            <div>
+                              <Label className="text-xs">Phase/Work</Label>
+                              <Input
+                                value={item.phase || ""}
+                                onChange={(e) =>
+                                  updateTimelineItem(index, "phase", e.target.value)
+                                }
+                                placeholder="Phase name"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Start Date</Label>
+                              <Input
+                                type="date"
+                                value={item.startDate || ""}
+                                onChange={(e) =>
+                                  updateTimelineItem(index, "startDate", e.target.value)
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">End Date</Label>
+                              <Input
+                                type="date"
+                                value={item.endDate || ""}
+                                onChange={(e) =>
+                                  updateTimelineItem(index, "endDate", e.target.value)
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Duration</Label>
+                              <Input
+                                value={item.duration || ""}
+                                onChange={(e) =>
+                                  updateTimelineItem(index, "duration", e.target.value)
+                                }
+                                placeholder="e.g., 2 weeks"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeTimelineItem(index)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <Button variant="outline" onClick={addTimelineItem}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Timeline Item
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="progress" className="space-y-6 mt-6">
