@@ -199,11 +199,14 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          end_date: string | null
           id: string
           name: string
           price_per_unit: number
+          progress: number | null
           project_block_id: string
           quantity: number
+          start_date: string | null
           unit_type: string
           updated_at: string
           work_id: string | null
@@ -211,11 +214,14 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          end_date?: string | null
           id?: string
           name: string
           price_per_unit: number
+          progress?: number | null
           project_block_id: string
           quantity?: number
+          start_date?: string | null
           unit_type: string
           updated_at?: string
           work_id?: string | null
@@ -223,11 +229,14 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          end_date?: string | null
           id?: string
           name?: string
           price_per_unit?: number
+          progress?: number | null
           project_block_id?: string
           quantity?: number
+          start_date?: string | null
           unit_type?: string
           updated_at?: string
           work_id?: string | null
@@ -256,6 +265,7 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
+          share_token: string | null
           updated_at: string
         }
         Insert: {
@@ -264,6 +274,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name: string
+          share_token?: string | null
           updated_at?: string
         }
         Update: {
@@ -272,6 +283,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
+          share_token?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -330,7 +342,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_share_token: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
