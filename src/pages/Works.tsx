@@ -39,8 +39,14 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Category {
+  id: string;
+  name: string;
+}
+
+interface RoomType {
   id: string;
   name: string;
 }
@@ -53,16 +59,20 @@ interface Work {
   unit_type: string;
   price_per_unit: number;
   categories?: Category;
+  room_type_ids?: string[];
 }
 
 const Works = () => {
   const { toast } = useToast();
   const [works, setWorks] = useState<Work[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [open, setOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [roomTypeOpen, setRoomTypeOpen] = useState(false);
   const [editingWork, setEditingWork] = useState<Work | null>(null);
   const [newCategory, setNewCategory] = useState("");
+  const [newRoomType, setNewRoomType] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -72,6 +82,7 @@ const Works = () => {
     unit_type: "m2",
     price_per_unit: "",
     category_id: "",
+    room_type_ids: [] as string[],
   });
 
   useEffect(() => {
@@ -79,9 +90,10 @@ const Works = () => {
   }, []);
 
   const loadData = async () => {
-    const [worksRes, categoriesRes] = await Promise.all([
+    const [worksRes, categoriesRes, roomTypesRes] = await Promise.all([
       supabase.from("works").select("*, categories(*)").order("created_at", { ascending: false }),
       supabase.from("categories").select("*").order("name"),
+      supabase.from("room_types").select("*").order("name"),
     ]);
 
     if (worksRes.error) {
@@ -91,7 +103,20 @@ const Works = () => {
         variant: "destructive",
       });
     } else {
-      setWorks(worksRes.data || []);
+      // Load room types for each work
+      const worksWithRoomTypes = await Promise.all(
+        (worksRes.data || []).map(async (work) => {
+          const { data: workRoomTypes } = await supabase
+            .from("work_room_types")
+            .select("room_type_id")
+            .eq("work_id", work.id);
+          return {
+            ...work,
+            room_type_ids: workRoomTypes?.map((rt) => rt.room_type_id) || [],
+          };
+        })
+      );
+      setWorks(worksWithRoomTypes);
     }
 
     if (categoriesRes.error) {
@@ -103,13 +128,25 @@ const Works = () => {
     } else {
       setCategories(categoriesRes.data || []);
     }
+
+    if (roomTypesRes.error) {
+      toast({
+        title: "Error loading room types",
+        description: roomTypesRes.error.message,
+        variant: "destructive",
+      });
+    } else {
+      setRoomTypes(roomTypesRes.data || []);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const workData = {
-      ...formData,
+      name: formData.name,
+      description: formData.description,
+      unit_type: formData.unit_type,
       price_per_unit: parseFloat(formData.price_per_unit),
       category_id: formData.category_id || null,
     };
@@ -126,13 +163,25 @@ const Works = () => {
           description: error.message,
           variant: "destructive",
         });
-      } else {
-        toast({ title: "Work updated successfully" });
-        loadData();
-        handleClose();
+        return;
       }
+
+      // Update room type relationships
+      await supabase.from("work_room_types").delete().eq("work_id", editingWork.id);
+      
+      if (formData.room_type_ids.length > 0) {
+        const roomTypeRelations = formData.room_type_ids.map((rtId) => ({
+          work_id: editingWork.id,
+          room_type_id: rtId,
+        }));
+        await supabase.from("work_room_types").insert(roomTypeRelations);
+      }
+
+      toast({ title: "Work updated successfully" });
+      loadData();
+      handleClose();
     } else {
-      const { error } = await supabase.from("works").insert([workData]);
+      const { data, error } = await supabase.from("works").insert([workData]).select().single();
 
       if (error) {
         toast({
@@ -140,11 +189,21 @@ const Works = () => {
           description: error.message,
           variant: "destructive",
         });
-      } else {
-        toast({ title: "Work created successfully" });
-        loadData();
-        handleClose();
+        return;
       }
+
+      // Insert room type relationships
+      if (data && formData.room_type_ids.length > 0) {
+        const roomTypeRelations = formData.room_type_ids.map((rtId) => ({
+          work_id: data.id,
+          room_type_id: rtId,
+        }));
+        await supabase.from("work_room_types").insert(roomTypeRelations);
+      }
+
+      toast({ title: "Work created successfully" });
+      loadData();
+      handleClose();
     }
   };
 
@@ -184,6 +243,42 @@ const Works = () => {
     }
   };
 
+  const handleAddRoomType = async () => {
+    if (!newRoomType.trim()) return;
+
+    const { error } = await supabase.from("room_types").insert([{ name: newRoomType }]);
+
+    if (error) {
+      toast({
+        title: "Error creating room type",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Room type created successfully" });
+      setNewRoomType("");
+      setRoomTypeOpen(false);
+      loadData();
+    }
+  };
+
+  const handleDeleteRoomType = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this room type?")) return;
+
+    const { error } = await supabase.from("room_types").delete().eq("id", id);
+
+    if (error) {
+      toast({
+        title: "Error deleting room type",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Room type deleted successfully" });
+      loadData();
+    }
+  };
+
   const handleClose = () => {
     setOpen(false);
     setEditingWork(null);
@@ -193,6 +288,7 @@ const Works = () => {
       unit_type: "m2",
       price_per_unit: "",
       category_id: "",
+      room_type_ids: [],
     });
   };
 
@@ -204,6 +300,7 @@ const Works = () => {
       unit_type: work.unit_type,
       price_per_unit: work.price_per_unit.toString(),
       category_id: work.category_id || "",
+      room_type_ids: work.room_type_ids || [],
     });
     setOpen(true);
   };
@@ -261,6 +358,41 @@ const Works = () => {
                   {categories.map((cat) => (
                     <div key={cat.id} className="flex items-center justify-between p-2 border rounded">
                       <span>{cat.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={roomTypeOpen} onOpenChange={setRoomTypeOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Tag className="w-4 h-4 mr-2" />
+                Room Types
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manage Room Types</DialogTitle>
+                <DialogDescription>Add room types where works can be performed</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    value={newRoomType}
+                    onChange={(e) => setNewRoomType(e.target.value)}
+                    placeholder="Room type name"
+                  />
+                  <Button onClick={handleAddRoomType}>Add</Button>
+                </div>
+                <div className="space-y-2">
+                  {roomTypes.map((rt) => (
+                    <div key={rt.id} className="flex items-center justify-between p-2 border rounded">
+                      <span>{rt.name}</span>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteRoomType(rt.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -351,6 +483,38 @@ const Works = () => {
                       />
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label>Room Types</Label>
+                    <div className="grid grid-cols-2 gap-3 border rounded-lg p-4">
+                      {roomTypes.map((rt) => (
+                        <div key={rt.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`room-${rt.id}`}
+                            checked={formData.room_type_ids.includes(rt.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  room_type_ids: [...formData.room_type_ids, rt.id],
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  room_type_ids: formData.room_type_ids.filter((id) => id !== rt.id),
+                                });
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`room-${rt.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {rt.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={handleClose}>
@@ -385,6 +549,7 @@ const Works = () => {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Category</TableHead>
+              <TableHead>Room Types</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Unit</TableHead>
               <TableHead>Price (AED)</TableHead>
@@ -394,7 +559,7 @@ const Works = () => {
           <TableBody>
             {paginatedWorks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
                   {searchQuery ? "No works found matching your search." : "No works yet. Add your first work to get started."}
                 </TableCell>
               </TableRow>
@@ -405,6 +570,22 @@ const Works = () => {
                   <TableCell>
                     {work.categories ? (
                       <Badge variant="outline">{work.categories.name}</Badge>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {work.room_type_ids && work.room_type_ids.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {work.room_type_ids.map((rtId) => {
+                          const roomType = roomTypes.find((rt) => rt.id === rtId);
+                          return roomType ? (
+                            <Badge key={rtId} variant="secondary" className="text-xs">
+                              {roomType.name}
+                            </Badge>
+                          ) : null;
+                        })}
+                      </div>
                     ) : (
                       "-"
                     )}

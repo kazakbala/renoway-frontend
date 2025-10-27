@@ -80,6 +80,60 @@ export type Database = {
         }
         Relationships: []
       }
+      room_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      work_room_types: {
+        Row: {
+          created_at: string
+          id: string
+          room_type_id: string
+          work_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          room_type_id: string
+          work_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          room_type_id?: string
+          work_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_room_types_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_room_types_work_id_fkey"
+            columns: ["work_id"]
+            isOneToOne: false
+            referencedRelation: "works"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       works: {
         Row: {
           category_id: string | null
