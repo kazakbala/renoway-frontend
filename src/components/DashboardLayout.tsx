@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Building2, Users, Wrench, FolderKanban, FileText, LogOut, Menu, X } from "lucide-react";
+import { Building2, Users, Wrench, FolderKanban, LogOut, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DashboardLayout = () => {
@@ -22,7 +22,6 @@ const DashboardLayout = () => {
     { path: "/dashboard/clients", label: "Clients", icon: Users },
     { path: "/dashboard/works", label: "Works", icon: Wrench },
     { path: "/dashboard/projects", label: "Projects", icon: FolderKanban },
-    { path: "/dashboard/invoices", label: "Invoices", icon: FileText },
   ];
 
   return (
