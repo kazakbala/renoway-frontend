@@ -412,10 +412,9 @@ const ProjectEditor = () => {
     setTimeline([
       ...timeline,
       {
-        phase: "",
-        startDate: "",
-        endDate: "",
-        duration: "",
+        phase: timeline.length + 1,
+        work: "",
+        durationDays: "",
       },
     ]);
   };
@@ -717,43 +716,35 @@ const ProjectEditor = () => {
                         <div key={index} className="border rounded-lg p-4 space-y-3">
                           <div className="grid grid-cols-4 gap-3">
                             <div>
-                              <Label className="text-xs">Phase/Work</Label>
+                              <Label className="text-xs">Phase</Label>
                               <Input
+                                type="number"
                                 value={item.phase || ""}
                                 onChange={(e) =>
-                                  updateTimelineItem(index, "phase", e.target.value)
+                                  updateTimelineItem(index, "phase", parseInt(e.target.value) || "")
                                 }
-                                placeholder="Phase name"
+                                placeholder="1"
+                                min="1"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs">Work</Label>
+                              <Input
+                                value={item.work || ""}
+                                readOnly
+                                className="bg-muted"
                               />
                             </div>
                             <div>
-                              <Label className="text-xs">Start Date</Label>
+                              <Label className="text-xs">Duration (days)</Label>
                               <Input
-                                type="date"
-                                value={item.startDate || ""}
+                                type="number"
+                                value={item.durationDays || ""}
                                 onChange={(e) =>
-                                  updateTimelineItem(index, "startDate", e.target.value)
+                                  updateTimelineItem(index, "durationDays", e.target.value)
                                 }
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs">End Date</Label>
-                              <Input
-                                type="date"
-                                value={item.endDate || ""}
-                                onChange={(e) =>
-                                  updateTimelineItem(index, "endDate", e.target.value)
-                                }
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs">Duration</Label>
-                              <Input
-                                value={item.duration || ""}
-                                onChange={(e) =>
-                                  updateTimelineItem(index, "duration", e.target.value)
-                                }
-                                placeholder="e.g., 2 weeks"
+                                placeholder="7"
+                                min="1"
                               />
                             </div>
                           </div>

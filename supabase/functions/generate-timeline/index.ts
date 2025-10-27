@@ -74,15 +74,12 @@ Deno.serve(async (req) => {
             content: `You are a construction project planning expert. Generate a preliminary timeline for renovation work items. Consider logical dependencies (e.g., demolition before construction, electrical before drywall, etc.). Return a JSON array with this structure:
 [
   {
-    "workName": "Work item name",
-    "blockName": "Block name",
-    "phase": "Phase number (1, 2, 3, etc.)",
-    "duration": "Estimated duration in days",
-    "dependencies": "What needs to be done first",
-    "startWeek": "Estimated week to start (1, 2, 3, etc.)"
+    "phase": 1,
+    "work": "Work item name",
+    "durationDays": 7
   }
 ]
-Organize work items in logical construction sequence.`
+Organize work items in logical construction sequence with phase numbers (1, 2, 3, etc.) indicating the order of execution. Duration should be in days.`
           },
           {
             role: 'user',
@@ -103,14 +100,11 @@ Organize work items in logical construction sequence.`
                     items: {
                       type: 'object',
                       properties: {
-                        workName: { type: 'string' },
-                        blockName: { type: 'string' },
                         phase: { type: 'number' },
-                        duration: { type: 'string' },
-                        dependencies: { type: 'string' },
-                        startWeek: { type: 'number' }
+                        work: { type: 'string' },
+                        durationDays: { type: 'number' }
                       },
-                      required: ['workName', 'blockName', 'phase', 'duration', 'dependencies', 'startWeek'],
+                      required: ['phase', 'work', 'durationDays'],
                       additionalProperties: false
                     }
                   }
