@@ -13,9 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Trash2, FileDown, Search } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileDown, Search, Link2, Copy, Calendar } from "lucide-react";
 import { exportToPDF } from "@/lib/pdf-export";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 
 interface Client {
   id: string;
@@ -40,6 +42,9 @@ interface ProjectWork {
   unit_type: string;
   price_per_unit: number;
   quantity: number;
+  progress?: number;
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 interface Block {
@@ -59,6 +64,8 @@ const ProjectEditor = () => {
   const [blocks, setBlocks] = useState<Block[]>([{ name: "Block 1", works: [] }]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -83,6 +90,7 @@ const ProjectEditor = () => {
       if (project) {
         setProjectName(project.name);
         setClientId(project.client_id);
+        setShareToken(project.share_token);
 
         const { data: projectBlocks } = await supabase
           .from("project_blocks")
@@ -120,6 +128,9 @@ const ProjectEditor = () => {
       unit_type: work.unit_type,
       price_per_unit: work.price_per_unit,
       quantity: 1,
+      progress: 0,
+      start_date: null,
+      end_date: null,
     });
     setBlocks(newBlocks);
     setSearchQuery("");
@@ -199,6 +210,9 @@ const ProjectEditor = () => {
             unit_type: work.unit_type,
             price_per_unit: work.price_per_unit,
             quantity: work.quantity,
+            progress: work.progress || 0,
+            start_date: work.start_date || null,
+            end_date: work.end_date || null,
           }));
 
           const { error: worksError } = await supabase
@@ -246,6 +260,43 @@ const ProjectEditor = () => {
     });
   };
 
+  const generateShareLink = async () => {
+    if (!id) {
+      toast({
+        title: "Please save the project first",
+        description: "You need to save the project before generating a share link",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("generate_share_token");
+      if (error) throw error;
+
+      const token = data;
+      await supabase.from("projects").update({ share_token: token }).eq("id", id);
+      
+      setShareToken(token);
+      toast({ title: "Share link generated successfully" });
+    } catch (error: any) {
+      toast({
+        title: "Error generating share link",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const copyShareLink = () => {
+    if (!shareToken) return;
+    const link = `${window.location.origin}/project-tracking/${shareToken}`;
+    navigator.clipboard.writeText(link);
+    setCopySuccess(true);
+    toast({ title: "Link copied to clipboard" });
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
   const filteredWorks = works.filter(
     (work) =>
       work.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -274,214 +325,339 @@ const ProjectEditor = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Project Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Project Name</Label>
-              <Input
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                placeholder="Enter project name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Client</Label>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.full_name || client.email || client.phone || "Unknown"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Add Works</CardTitle>
-          </div>
+          <CardTitle>{id ? "Edit Project" : "Create Project"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="relative">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search works..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          {searchQuery && (
-            <div className="mt-4 max-h-60 overflow-y-auto border rounded-lg">
-              {filteredWorks.map((work) => (
-                <div
-                  key={work.id}
-                  className="p-3 border-b last:border-0 hover:bg-accent cursor-pointer"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="font-medium">{work.name}</p>
-                      <p className="text-sm text-muted-foreground">{work.description}</p>
-                      <p className="text-sm text-primary">
-                        {work.price_per_unit} AED / {work.unit_type}
-                      </p>
-                    </div>
-                    <Select
-                      onValueChange={(value) => addWorkToBlock(parseInt(value), work)}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Add to..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {blocks.map((block, i) => (
-                          <SelectItem key={i} value={i.toString()}>
-                            {block.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <Tabs defaultValue="details">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="details">Project Details</TabsTrigger>
+              <TabsTrigger value="progress" disabled={!id}>Progress Tracking</TabsTrigger>
+            </TabsList>
 
-      {blocks.map((block, blockIndex) => (
-        <Card key={blockIndex}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <Input
-                value={block.name}
-                onChange={(e) => {
-                  const newBlocks = [...blocks];
-                  newBlocks[blockIndex].name = e.target.value;
-                  setBlocks(newBlocks);
-                }}
-                className="text-lg font-semibold border-0 p-0 h-auto focus-visible:ring-0"
-              />
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  Subtotal: {calculateBlockTotal(block).toFixed(2)} AED
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeBlock(blockIndex)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+            <TabsContent value="details" className="space-y-6 mt-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Project Name</Label>
+                  <Input
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="Enter project name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Client</Label>
+                  <Select value={clientId} onValueChange={setClientId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select client" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.full_name || client.email || client.phone || "Unknown"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {block.works.map((work, workIndex) => (
-                <div key={workIndex} className="border rounded-lg p-4 space-y-3">
-                  <div className="grid grid-cols-4 gap-3">
-                    <div>
-                      <Label className="text-xs">Name</Label>
-                      <Input
-                        value={work.name}
-                        onChange={(e) =>
-                          updateWork(blockIndex, workIndex, "name", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Unit Type</Label>
-                      <Input
-                        value={work.unit_type}
-                        onChange={(e) =>
-                          updateWork(blockIndex, workIndex, "unit_type", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Price/Unit (AED)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={work.price_per_unit}
-                        onChange={(e) =>
-                          updateWork(
-                            blockIndex,
-                            workIndex,
-                            "price_per_unit",
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Quantity</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={work.quantity}
-                        onChange={(e) =>
-                          updateWork(
-                            blockIndex,
-                            workIndex,
-                            "quantity",
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                      />
-                    </div>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Add Works</CardTitle>
                   </div>
-                  <div>
-                    <Label className="text-xs">Description</Label>
-                    <Textarea
-                      value={work.description}
-                      onChange={(e) =>
-                        updateWork(blockIndex, workIndex, "description", e.target.value)
-                      }
-                      rows={2}
+                </CardHeader>
+                <CardContent>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search works..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
                     />
                   </div>
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <span className="text-sm font-medium">
-                      Total: {(work.price_per_unit * work.quantity).toFixed(2)} AED
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeWork(blockIndex, workIndex)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+                  {searchQuery && (
+                    <div className="mt-4 max-h-60 overflow-y-auto border rounded-lg">
+                      {filteredWorks.map((work) => (
+                        <div
+                          key={work.id}
+                          className="p-3 border-b last:border-0 hover:bg-accent cursor-pointer"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-medium">{work.name}</p>
+                              <p className="text-sm text-muted-foreground">{work.description}</p>
+                              <p className="text-sm text-primary">
+                                {work.price_per_unit} AED / {work.unit_type}
+                              </p>
+                            </div>
+                            <Select
+                              onValueChange={(value) => addWorkToBlock(parseInt(value), work)}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue placeholder="Add to..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {blocks.map((block, i) => (
+                                  <SelectItem key={i} value={i.toString()}>
+                                    {block.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={addBlock}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Block
-        </Button>
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground">Grand Total</p>
-          <p className="text-3xl font-bold text-primary">
-            {calculateGrandTotal().toFixed(2)} AED
-          </p>
-        </div>
-      </div>
+              {blocks.map((block, blockIndex) => (
+                <Card key={blockIndex}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <Input
+                        value={block.name}
+                        onChange={(e) => {
+                          const newBlocks = [...blocks];
+                          newBlocks[blockIndex].name = e.target.value;
+                          setBlocks(newBlocks);
+                        }}
+                        className="text-lg font-semibold border-0 p-0 h-auto focus-visible:ring-0"
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">
+                          Subtotal: {calculateBlockTotal(block).toFixed(2)} AED
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeBlock(blockIndex)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {block.works.map((work, workIndex) => (
+                        <div key={workIndex} className="border rounded-lg p-4 space-y-3">
+                          <div className="grid grid-cols-4 gap-3">
+                            <div>
+                              <Label className="text-xs">Name</Label>
+                              <Input
+                                value={work.name}
+                                onChange={(e) =>
+                                  updateWork(blockIndex, workIndex, "name", e.target.value)
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Unit Type</Label>
+                              <Input
+                                value={work.unit_type}
+                                onChange={(e) =>
+                                  updateWork(blockIndex, workIndex, "unit_type", e.target.value)
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Price/Unit (AED)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={work.price_per_unit}
+                                onChange={(e) =>
+                                  updateWork(
+                                    blockIndex,
+                                    workIndex,
+                                    "price_per_unit",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Quantity</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={work.quantity}
+                                onChange={(e) =>
+                                  updateWork(
+                                    blockIndex,
+                                    workIndex,
+                                    "quantity",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Description</Label>
+                            <Textarea
+                              value={work.description}
+                              onChange={(e) =>
+                                updateWork(blockIndex, workIndex, "description", e.target.value)
+                              }
+                              rows={2}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t">
+                            <span className="text-sm font-medium">
+                              Total: {(work.price_per_unit * work.quantity).toFixed(2)} AED
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeWork(blockIndex, workIndex)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              <div className="flex items-center justify-between">
+                <Button variant="outline" onClick={addBlock}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Block
+                </Button>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Grand Total</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {calculateGrandTotal().toFixed(2)} AED
+                  </p>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="progress" className="space-y-6 mt-6">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Link2 className="w-5 h-5" />
+                      Client Tracking Link
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {shareToken ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            readOnly
+                            value={`${window.location.origin}/project-tracking/${shareToken}`}
+                            className="flex-1"
+                          />
+                          <Button onClick={copyShareLink} variant="outline">
+                            <Copy className="w-4 h-4 mr-2" />
+                            {copySuccess ? "Copied!" : "Copy"}
+                          </Button>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Share this link with your client to let them track project progress
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                          Generate a public tracking link for your client
+                        </p>
+                        <Button onClick={generateShareLink}>
+                          <Link2 className="w-4 h-4 mr-2" />
+                          Generate Share Link
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {blocks.map((block, blockIndex) => (
+                  <Card key={blockIndex}>
+                    <CardHeader>
+                      <CardTitle>{block.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        {block.works.map((work, workIndex) => (
+                          <div key={workIndex} className="border rounded-lg p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold">{work.name}</h4>
+                              <span className="text-xl font-bold text-primary">
+                                {work.progress || 0}%
+                              </span>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs">Progress (%)</Label>
+                              <div className="flex items-center gap-4">
+                                <Progress value={work.progress || 0} className="flex-1" />
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={work.progress || 0}
+                                  onChange={(e) =>
+                                    updateWork(
+                                      blockIndex,
+                                      workIndex,
+                                      "progress",
+                                      Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                    )
+                                  }
+                                  className="w-20"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-xs flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  Start Date
+                                </Label>
+                                <Input
+                                  type="date"
+                                  value={work.start_date || ""}
+                                  onChange={(e) =>
+                                    updateWork(blockIndex, workIndex, "start_date", e.target.value)
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  End Date
+                                </Label>
+                                <Input
+                                  type="date"
+                                  value={work.end_date || ""}
+                                  onChange={(e) =>
+                                    updateWork(blockIndex, workIndex, "end_date", e.target.value)
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

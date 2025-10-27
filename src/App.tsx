@@ -14,6 +14,7 @@ import Invoices from "./pages/Invoices";
 import InvoiceEditor from "./pages/InvoiceEditor";
 import DashboardLayout from "@/components/DashboardLayout";
 import NotFound from "./pages/NotFound";
+import ProjectTracking from "./pages/ProjectTracking";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/project-tracking/:token" element={<ProjectTracking />} />
             <Route
               path="/dashboard"
               element={
