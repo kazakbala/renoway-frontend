@@ -17,14 +17,12 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Building2, Users, Wrench, FolderKanban, FileText, LogOut } from "lucide-react";
+import { Building2, Users, Wrench, LogOut } from "lucide-react";
 
 const navItems = [
   { path: "/dashboard", label: "Overview", icon: Building2 },
   { path: "/dashboard/clients", label: "Clients", icon: Users },
   { path: "/dashboard/works", label: "Works", icon: Wrench },
-  { path: "/dashboard/projects", label: "Projects", icon: FolderKanban },
-  { path: "/dashboard/invoices", label: "Invoices", icon: FileText },
 ];
 
 function AppSidebar() {

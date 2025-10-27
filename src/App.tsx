@@ -8,13 +8,8 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import Works from "./pages/Works";
-import Projects from "./pages/Projects";
-import ProjectEditor from "./pages/ProjectEditor";
-import Invoices from "./pages/Invoices";
-import InvoiceEditor from "./pages/InvoiceEditor";
 import DashboardLayout from "@/components/DashboardLayout";
 import NotFound from "./pages/NotFound";
-import ProjectTracking from "./pages/ProjectTracking";
 
 const queryClient = new QueryClient();
 
@@ -46,7 +41,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/project-tracking/:token" element={<ProjectTracking />} />
             <Route
               path="/dashboard"
               element={
@@ -58,12 +52,6 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="clients" element={<Clients />} />
               <Route path="works" element={<Works />} />
-              <Route path="projects" element={<Projects />} />
-              <Route path="projects/create" element={<ProjectEditor />} />
-              <Route path="projects/:id" element={<ProjectEditor />} />
-              <Route path="invoices" element={<Invoices />} />
-              <Route path="invoices/create" element={<InvoiceEditor />} />
-              <Route path="invoices/:id" element={<InvoiceEditor />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
