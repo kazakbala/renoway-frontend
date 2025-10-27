@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Trash2, Download } from "lucide-react";
+import { Plus, FileText, Trash2, Download, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { exportInvoiceToPDF } from "@/lib/invoice-pdf-export";
 
@@ -242,6 +242,14 @@ const Invoices = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate(`/dashboard/invoices/${invoice.id}`)}
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

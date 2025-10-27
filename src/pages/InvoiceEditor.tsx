@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save } from "lucide-react";
 
 interface Project {
@@ -41,6 +41,7 @@ interface ProjectWork {
 const InvoiceEditor = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { id } = useParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [projectWorks, setProjectWorks] = useState<ProjectWork[]>([]);
@@ -50,10 +51,14 @@ const InvoiceEditor = () => {
   const [status, setStatus] = useState("draft");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadProjects();
-  }, []);
+    if (id) {
+      loadInvoice(id);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -63,6 +68,51 @@ const InvoiceEditor = () => {
       setSelectedWorks(new Set());
     }
   }, [selectedProjectId]);
+
+  const loadInvoice = async (invoiceId: string) => {
+    setLoading(true);
+    const { data: invoice, error: invoiceError } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("id", invoiceId)
+      .single();
+
+    if (invoiceError || !invoice) {
+      toast({
+        title: "Error loading invoice",
+        description: invoiceError?.message || "Invoice not found",
+        variant: "destructive",
+      });
+      navigate("/dashboard/invoices");
+      return;
+    }
+
+    // Load invoice items
+    const { data: items, error: itemsError } = await supabase
+      .from("invoice_items")
+      .select("project_work_id")
+      .eq("invoice_id", invoiceId);
+
+    if (itemsError) {
+      toast({
+        title: "Error loading invoice items",
+        description: itemsError.message,
+        variant: "destructive",
+      });
+    }
+
+    setSelectedProjectId(invoice.project_id);
+    setInvoiceNumber(invoice.invoice_number);
+    setInvoiceDate(invoice.invoice_date);
+    setStatus(invoice.status);
+    setNotes(invoice.notes || "");
+    
+    if (items) {
+      setSelectedWorks(new Set(items.map(item => item.project_work_id)));
+    }
+    
+    setLoading(false);
+  };
 
   const loadProjects = async () => {
     const { data, error } = await supabase
@@ -153,57 +203,112 @@ const InvoiceEditor = () => {
 
     setSaving(true);
 
-    // Create invoice
-    const { data: invoice, error: invoiceError } = await supabase
-      .from("invoices")
-      .insert([
-        {
+    if (id) {
+      // Update existing invoice
+      const { error: invoiceError } = await supabase
+        .from("invoices")
+        .update({
           project_id: selectedProjectId,
           invoice_number: invoiceNumber,
           invoice_date: invoiceDate,
           status,
           notes: notes || null,
-        },
-      ])
-      .select()
-      .single();
+        })
+        .eq("id", id);
 
-    if (invoiceError) {
-      toast({
-        title: "Error creating invoice",
-        description: invoiceError.message,
-        variant: "destructive",
+      if (invoiceError) {
+        toast({
+          title: "Error updating invoice",
+          description: invoiceError.message,
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
+      // Delete existing items
+      await supabase.from("invoice_items").delete().eq("invoice_id", id);
+
+      // Insert new items
+      const items = Array.from(selectedWorks).map((workId) => {
+        const work = projectWorks.find((w) => w.id === workId);
+        return {
+          invoice_id: id,
+          project_work_id: workId,
+          quantity: work!.quantity,
+          price_per_unit: work!.price_per_unit,
+        };
       });
-      setSaving(false);
-      return;
-    }
 
-    // Create invoice items
-    const items = Array.from(selectedWorks).map((workId) => {
-      const work = projectWorks.find((w) => w.id === workId);
-      return {
-        invoice_id: invoice.id,
-        project_work_id: workId,
-        quantity: work!.quantity,
-        price_per_unit: work!.price_per_unit,
-      };
-    });
+      const { error: itemsError } = await supabase
+        .from("invoice_items")
+        .insert(items);
 
-    const { error: itemsError } = await supabase
-      .from("invoice_items")
-      .insert(items);
+      if (itemsError) {
+        toast({
+          title: "Error updating invoice items",
+          description: itemsError.message,
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
 
-    if (itemsError) {
-      toast({
-        title: "Error creating invoice items",
-        description: itemsError.message,
-        variant: "destructive",
+      toast({ title: "Invoice updated successfully" });
+    } else {
+      // Create new invoice
+      const { data: invoice, error: invoiceError } = await supabase
+        .from("invoices")
+        .insert([
+          {
+            project_id: selectedProjectId,
+            invoice_number: invoiceNumber,
+            invoice_date: invoiceDate,
+            status,
+            notes: notes || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (invoiceError) {
+        toast({
+          title: "Error creating invoice",
+          description: invoiceError.message,
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
+      // Create invoice items
+      const items = Array.from(selectedWorks).map((workId) => {
+        const work = projectWorks.find((w) => w.id === workId);
+        return {
+          invoice_id: invoice.id,
+          project_work_id: workId,
+          quantity: work!.quantity,
+          price_per_unit: work!.price_per_unit,
+        };
       });
-      setSaving(false);
-      return;
-    }
 
-    toast({ title: "Invoice created successfully" });
+      const { error: itemsError } = await supabase
+        .from("invoice_items")
+        .insert(items);
+
+      if (itemsError) {
+        toast({
+          title: "Error creating invoice items",
+          description: itemsError.message,
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
+      toast({ title: "Invoice created successfully" });
+    }
+    
     navigate("/dashboard/invoices");
   };
 
@@ -217,6 +322,14 @@ const InvoiceEditor = () => {
     }, 0);
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-lg">Loading invoice...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -224,7 +337,7 @@ const InvoiceEditor = () => {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h2 className="text-2xl font-bold">Create Invoice</h2>
+          <h2 className="text-2xl font-bold">{id ? "Edit Invoice" : "Create Invoice"}</h2>
           <p className="text-muted-foreground">Select project and works to invoice</p>
         </div>
       </div>

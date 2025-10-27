@@ -61,6 +61,7 @@ const App = () => (
               <Route path="projects/:id" element={<ProjectEditor />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="invoices/create" element={<InvoiceEditor />} />
+              <Route path="invoices/:id" element={<InvoiceEditor />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
