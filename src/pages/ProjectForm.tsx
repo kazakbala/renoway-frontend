@@ -551,7 +551,7 @@ const ProjectForm = () => {
                                 />
                               </TableCell>
                               <TableCell>{work.name}</TableCell>
-                              <TableCell>${work.price_per_unit.toFixed(2)}</TableCell>
+                              <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
                               <TableCell>{work.unit_type}</TableCell>
                               <TableCell>
                                 <Input
@@ -571,7 +571,7 @@ const ProjectForm = () => {
                                 />
                               </TableCell>
                               <TableCell>
-                                ${(work.price_per_unit * roomWork.quantity).toFixed(2)}
+                                AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}
                               </TableCell>
                             </TableRow>
                           );
@@ -581,7 +581,7 @@ const ProjectForm = () => {
                   </div>
                   <div className="flex justify-end pt-2">
                     <div className="text-lg font-semibold">
-                      Room Subtotal: ${calculateRoomSubtotal(room).toFixed(2)}
+                      Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -594,7 +594,7 @@ const ProjectForm = () => {
           <CardContent className="pt-6">
             <div className="flex justify-between items-center text-2xl font-bold">
               <span>Project Total:</span>
-              <span>${calculateProjectTotal().toFixed(2)}</span>
+              <span>AED {calculateProjectTotal().toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
