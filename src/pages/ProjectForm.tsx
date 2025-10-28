@@ -147,19 +147,9 @@ const ProjectForm = () => {
                 quantity: w.quantity,
               }));
 
-              // Generate room name based on room type and count
-              const sameTypeIndex = projectRooms
-                .slice(0, projectRooms.indexOf(room) + 1)
-                .filter((r: any) => r.room_type_id === room.room_type_id)
-                .length;
-              
-              const roomName = room.room_types 
-                ? `${room.room_types.name} ${sameTypeIndex}`
-                : `Room ${projectRooms.indexOf(room) + 1}`;
-
               return {
                 id: room.id,
-                name: roomName,
+                name: room.name || `Room ${projectRooms.indexOf(room) + 1}`,
                 room_type_id: room.room_type_id,
                 opening_area: room.opening_area?.toString() || "",
                 wall_area: room.wall_area?.toString() || "",
@@ -355,6 +345,7 @@ const ProjectForm = () => {
             .from("project_rooms")
             .insert({
               project_id: projectId,
+              name: room.name,
               room_type_id: room.room_type_id,
               opening_area: parseFloat(room.opening_area) || null,
               wall_area: parseFloat(room.wall_area) || null,
@@ -399,6 +390,7 @@ const ProjectForm = () => {
           .from("project_rooms")
           .insert({
             project_id: id,
+            name: room.name,
             room_type_id: room.room_type_id,
             opening_area: parseFloat(room.opening_area) || null,
             wall_area: parseFloat(room.wall_area) || null,
@@ -562,6 +554,15 @@ const ProjectForm = () => {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Room Name</Label>
+                        <Input
+                          value={room.name}
+                          onChange={(e) => updateRoom(roomIndex, "name", e.target.value)}
+                          placeholder="Enter room name"
+                          required
+                        />
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Room Type</Label>

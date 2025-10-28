@@ -127,6 +127,7 @@ export type Database = {
           created_at: string
           floor_area: number | null
           id: string
+          name: string
           opening_area: number | null
           perimeter: number | null
           project_id: string
@@ -137,6 +138,7 @@ export type Database = {
           created_at?: string
           floor_area?: number | null
           id?: string
+          name?: string
           opening_area?: number | null
           perimeter?: number | null
           project_id: string
@@ -147,6 +149,7 @@ export type Database = {
           created_at?: string
           floor_area?: number | null
           id?: string
+          name?: string
           opening_area?: number | null
           perimeter?: number | null
           project_id?: string
