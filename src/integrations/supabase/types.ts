@@ -269,6 +269,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_general: boolean
           name: string
           price_per_unit: number
           unit_type: string
@@ -280,6 +281,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_general?: boolean
           name: string
           price_per_unit: number
           unit_type: string
@@ -291,6 +293,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_general?: boolean
           name?: string
           price_per_unit?: number
           unit_type?: string
