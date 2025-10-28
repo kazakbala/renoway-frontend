@@ -59,6 +59,7 @@ interface Work {
   unit_type: string;
   price_per_unit: number;
   calculation_base: string | null;
+  is_general: boolean;
   categories?: Category;
   room_type_ids?: string[];
 }
@@ -84,6 +85,7 @@ const Works = () => {
     price_per_unit: "",
     category_id: "",
     calculation_base: "none",
+    is_general: false,
     room_type_ids: [] as string[],
   });
 
@@ -152,6 +154,7 @@ const Works = () => {
       price_per_unit: parseFloat(formData.price_per_unit),
       category_id: formData.category_id || null,
       calculation_base: formData.calculation_base === "none" ? null : formData.calculation_base,
+      is_general: formData.is_general,
     };
 
     if (editingWork) {
@@ -172,7 +175,7 @@ const Works = () => {
       // Update room type relationships
       await supabase.from("work_room_types").delete().eq("work_id", editingWork.id);
       
-      if (formData.room_type_ids.length > 0) {
+      if (!formData.is_general && formData.room_type_ids.length > 0) {
         const roomTypeRelations = formData.room_type_ids.map((rtId) => ({
           work_id: editingWork.id,
           room_type_id: rtId,
@@ -196,7 +199,7 @@ const Works = () => {
       }
 
       // Insert room type relationships
-      if (data && formData.room_type_ids.length > 0) {
+      if (data && !formData.is_general && formData.room_type_ids.length > 0) {
         const roomTypeRelations = formData.room_type_ids.map((rtId) => ({
           work_id: data.id,
           room_type_id: rtId,
@@ -292,6 +295,7 @@ const Works = () => {
       price_per_unit: "",
       category_id: "",
       calculation_base: "none",
+      is_general: false,
       room_type_ids: [],
     });
   };
@@ -305,6 +309,7 @@ const Works = () => {
       price_per_unit: work.price_per_unit.toString(),
       category_id: work.category_id || "",
       calculation_base: work.calculation_base || "none",
+      is_general: work.is_general || false,
       room_type_ids: work.room_type_ids || [],
     });
     setOpen(true);
@@ -506,13 +511,35 @@ const Works = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="is_general"
+                        checked={formData.is_general}
+                        onCheckedChange={(checked) => {
+                          setFormData({
+                            ...formData,
+                            is_general: checked as boolean,
+                            room_type_ids: checked ? [] : formData.room_type_ids,
+                          });
+                        }}
+                      />
+                      <label
+                        htmlFor="is_general"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        General Work (applied to entire apartment)
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <Label>Room Types</Label>
-                    <div className="grid grid-cols-2 gap-3 border rounded-lg p-4">
+                    <div className="grid grid-cols-2 gap-3 border rounded-lg p-4 bg-muted/50">
                       {roomTypes.map((rt) => (
                         <div key={rt.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={`room-${rt.id}`}
                             checked={formData.room_type_ids.includes(rt.id)}
+                            disabled={formData.is_general}
                             onCheckedChange={(checked) => {
                               if (checked) {
                                 setFormData({
@@ -597,7 +624,9 @@ const Works = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    {work.room_type_ids && work.room_type_ids.length > 0 ? (
+                    {work.is_general ? (
+                      <Badge variant="secondary">General Work</Badge>
+                    ) : work.room_type_ids && work.room_type_ids.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {work.room_type_ids.map((rtId) => {
                           const roomType = roomTypes.find((rt) => rt.id === rtId);
