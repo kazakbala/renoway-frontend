@@ -554,16 +554,16 @@ const ProjectForm = () => {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Room Name</Label>
-                        <Input
-                          value={room.name}
-                          onChange={(e) => updateRoom(roomIndex, "name", e.target.value)}
-                          placeholder="Enter room name"
-                          required
-                        />
-                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Room Name</Label>
+                          <Input
+                            value={room.name}
+                            onChange={(e) => updateRoom(roomIndex, "name", e.target.value)}
+                            placeholder="Enter room name"
+                            required
+                          />
+                        </div>
                         <div className="space-y-2">
                           <Label>Room Type</Label>
                           <Select
@@ -583,6 +583,8 @@ const ProjectForm = () => {
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
                           <Label>Opening Area (m²)</Label>
                           <Input
