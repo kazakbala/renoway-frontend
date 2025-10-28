@@ -457,86 +457,84 @@ const Works = () => {
                       rows={3}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="unit_type">Unit Type</Label>
-                        <Select
-                          value={formData.unit_type}
-                          onValueChange={(value) => setFormData({ ...formData, unit_type: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="m2">m² (Square Meter)</SelectItem>
-                            <SelectItem value="m">m (Meter)</SelectItem>
-                            <SelectItem value="pc">pc (Piece)</SelectItem>
-                            <SelectItem value="set">Set</SelectItem>
-                            <SelectItem value="hr">Hour</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="price">Price per Unit (AED)</Label>
-                        <Input
-                          id="price"
-                          type="number"
-                          step="0.01"
-                          value={formData.price_per_unit}
-                          onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="calculation_base">Calculation Base</Label>
-                        <Select
-                          value={formData.calculation_base}
-                          onValueChange={(value) => setFormData({ ...formData, calculation_base: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            <SelectItem value="wall">Wall</SelectItem>
-                            <SelectItem value="floor">Floor</SelectItem>
-                            <SelectItem value="perimeter">Perimeter</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="unit_type">Unit Type</Label>
+                      <Select
+                        value={formData.unit_type}
+                        onValueChange={(value) => setFormData({ ...formData, unit_type: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="m2">m² (Square Meter)</SelectItem>
+                          <SelectItem value="m">m (Meter)</SelectItem>
+                          <SelectItem value="pc">pc (Piece)</SelectItem>
+                          <SelectItem value="set">Set</SelectItem>
+                          <SelectItem value="hr">Hour</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Room Types</Label>
-                      <div className="grid grid-cols-2 gap-3 border rounded-lg p-4 h-fit">
-                        {roomTypes.map((rt) => (
-                          <div key={rt.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`room-${rt.id}`}
-                              checked={formData.room_type_ids.includes(rt.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setFormData({
-                                    ...formData,
-                                    room_type_ids: [...formData.room_type_ids, rt.id],
-                                  });
-                                } else {
-                                  setFormData({
-                                    ...formData,
-                                    room_type_ids: formData.room_type_ids.filter((id) => id !== rt.id),
-                                  });
-                                }
-                              }}
-                            />
-                            <label
-                              htmlFor={`room-${rt.id}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                            >
-                              {rt.name}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
+                      <Label htmlFor="price">Price per Unit (AED)</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        step="0.01"
+                        value={formData.price_per_unit}
+                        onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="calculation_base">Calculation Base</Label>
+                    <Select
+                      value={formData.calculation_base}
+                      onValueChange={(value) => setFormData({ ...formData, calculation_base: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="wall">Wall</SelectItem>
+                        <SelectItem value="floor">Floor</SelectItem>
+                        <SelectItem value="perimeter">Perimeter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Room Types</Label>
+                    <div className="grid grid-cols-2 gap-3 border rounded-lg p-4">
+                      {roomTypes.map((rt) => (
+                        <div key={rt.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`room-${rt.id}`}
+                            checked={formData.room_type_ids.includes(rt.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  room_type_ids: [...formData.room_type_ids, rt.id],
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  room_type_ids: formData.room_type_ids.filter((id) => id !== rt.id),
+                                });
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`room-${rt.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {rt.name}
+                          </label>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
