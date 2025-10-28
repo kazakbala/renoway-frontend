@@ -47,6 +47,7 @@ interface Work {
   price_per_unit: number;
   unit_type: string;
   calculation_base: string;
+  is_general: boolean;
   work_room_types?: Array<{ room_type_id: string }>;
 }
 
@@ -55,6 +56,12 @@ interface RoomWork {
   is_selected: boolean;
   quantity: number;
   work?: Work;
+}
+
+interface GeneralWork {
+  work_id: string;
+  is_selected: boolean;
+  quantity: number;
 }
 
 interface Room {
@@ -80,8 +87,9 @@ const ProjectForm = () => {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [allWorks, setAllWorks] = useState<Work[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [generalWorks, setGeneralWorks] = useState<GeneralWork[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("0");
+  const [activeTab, setActiveTab] = useState<string>("general");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -121,7 +129,8 @@ const ProjectForm = () => {
             project_room_works(work_id, is_selected, quantity)
           `,
           )
-          .eq("project_id", id);
+          .eq("project_id", id)
+          .not("room_type_id", "is", null);
 
         if (projectRooms) {
           const roomsData = await Promise.all(
@@ -146,6 +155,29 @@ const ProjectForm = () => {
             }),
           );
           setRooms(roomsData);
+        }
+
+        // Load general works
+        const { data: generalWorksRoom } = await supabase
+          .from("project_rooms")
+          .select(
+            `
+            id,
+            project_room_works(work_id, is_selected, quantity)
+          `,
+          )
+          .eq("project_id", id)
+          .is("room_type_id", null)
+          .single();
+
+        if (generalWorksRoom && generalWorksRoom.project_room_works) {
+          setGeneralWorks(
+            generalWorksRoom.project_room_works.map((w: any) => ({
+              work_id: w.work_id,
+              is_selected: w.is_selected,
+              quantity: w.quantity,
+            })),
+          );
         }
       }
     }
@@ -175,17 +207,20 @@ const ProjectForm = () => {
       },
     ];
     setRooms(newRooms);
-    setActiveTab((newRooms.length - 1).toString());
+    setActiveTab(`room-${newRooms.length - 1}`);
   };
 
   const removeRoom = (index: number) => {
     const newRooms = rooms.filter((_, i) => i !== index);
     setRooms(newRooms);
-    // Switch to first tab if current tab is removed
-    if (parseInt(activeTab) === index && newRooms.length > 0) {
-      setActiveTab("0");
-    } else if (parseInt(activeTab) > index) {
-      setActiveTab((parseInt(activeTab) - 1).toString());
+    // Switch to general tab if current tab is removed
+    if (activeTab === `room-${index}`) {
+      setActiveTab("general");
+    } else if (activeTab.startsWith("room-")) {
+      const currentIndex = parseInt(activeTab.split("-")[1]);
+      if (currentIndex > index) {
+        setActiveTab(`room-${currentIndex - 1}`);
+      }
     }
   };
 
@@ -193,8 +228,8 @@ const ProjectForm = () => {
     const newRooms = [...rooms];
     if (field === "room_type_id") {
       // When room type changes, initialize works for that room type and update name
-      const roomTypeWorks = allWorks.filter((work) =>
-        work.work_room_types?.some((wrt: any) => wrt.room_type_id === value),
+      const roomTypeWorks = allWorks.filter(
+        (work) => !work.is_general && work.work_room_types?.some((wrt: any) => wrt.room_type_id === value),
       );
 
       newRooms[index] = {
@@ -284,7 +319,42 @@ const ProjectForm = () => {
   };
 
   const calculateProjectTotal = (): number => {
-    return rooms.reduce((sum, room) => sum + calculateRoomSubtotal(room), 0);
+    const roomsTotal = rooms.reduce((sum, room) => sum + calculateRoomSubtotal(room), 0);
+    const generalWorksTotal = generalWorks.reduce((sum, gw) => {
+      if (gw.is_selected) {
+        const work = allWorks.find((w) => w.id === gw.work_id);
+        if (work) {
+          return sum + work.price_per_unit * gw.quantity;
+        }
+      }
+      return sum;
+    }, 0);
+    return roomsTotal + generalWorksTotal;
+  };
+
+  const updateGeneralWork = (workId: string, field: "is_selected" | "quantity", value: any) => {
+    setGeneralWorks((prev) => {
+      const existingIndex = prev.findIndex((w) => w.work_id === workId);
+      if (existingIndex >= 0) {
+        const newWorks = [...prev];
+        if (field === "is_selected" && value) {
+          newWorks[existingIndex] = {
+            ...newWorks[existingIndex],
+            is_selected: value,
+            quantity: 1,
+          };
+        } else {
+          newWorks[existingIndex] = {
+            ...newWorks[existingIndex],
+            [field]: value,
+          };
+        }
+        return newWorks;
+      } else if (field === "is_selected" && value) {
+        return [...prev, { work_id: workId, is_selected: true, quantity: 1 }];
+      }
+      return prev;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -321,6 +391,36 @@ const ProjectForm = () => {
 
         // Use the newly created project id
         const projectId = project.id;
+
+        // Insert general works room (if any general works selected)
+        const selectedGeneralWorks = generalWorks.filter((w) => w.is_selected);
+        if (selectedGeneralWorks.length > 0) {
+          const { data: generalRoom, error: generalRoomError } = await supabase
+            .from("project_rooms")
+            .insert({
+              project_id: projectId,
+              name: "General Works",
+              room_type_id: null,
+              opening_area: null,
+              wall_area: null,
+              floor_area: null,
+              perimeter: null,
+            })
+            .select()
+            .single();
+
+          if (generalRoomError) throw generalRoomError;
+
+          const generalWorksData = selectedGeneralWorks.map((w) => ({
+            project_room_id: generalRoom.id,
+            work_id: w.work_id,
+            is_selected: w.is_selected,
+            quantity: w.quantity,
+          }));
+
+          const { error: generalWorksError } = await supabase.from("project_room_works").insert(generalWorksData);
+          if (generalWorksError) throw generalWorksError;
+        }
 
         // Insert rooms and works
         for (const room of rooms) {
@@ -363,6 +463,36 @@ const ProjectForm = () => {
         });
         navigate("/dashboard/projects");
         return;
+      }
+
+      // For update, insert general works room (if any general works selected)
+      const selectedGeneralWorks = generalWorks.filter((w) => w.is_selected);
+      if (selectedGeneralWorks.length > 0) {
+        const { data: generalRoom, error: generalRoomError } = await supabase
+          .from("project_rooms")
+          .insert({
+            project_id: id,
+            name: "General Works",
+            room_type_id: null,
+            opening_area: null,
+            wall_area: null,
+            floor_area: null,
+            perimeter: null,
+          })
+          .select()
+          .single();
+
+        if (generalRoomError) throw generalRoomError;
+
+        const generalWorksData = selectedGeneralWorks.map((w) => ({
+          project_room_id: generalRoom.id,
+          work_id: w.work_id,
+          is_selected: w.is_selected,
+          quantity: w.quantity,
+        }));
+
+        const { error: generalWorksError } = await supabase.from("project_room_works").insert(generalWorksData);
+        if (generalWorksError) throw generalWorksError;
       }
 
       // For update, insert new rooms
@@ -418,8 +548,9 @@ const ProjectForm = () => {
   const getWorksForRoom = (room: Room): (Work & { roomWork?: RoomWork })[] => {
     if (!room.room_type_id) return [];
 
-    const roomTypeWorks = allWorks.filter((work) =>
-      work.work_room_types?.some((wrt: any) => wrt.room_type_id === room.room_type_id),
+    const roomTypeWorks = allWorks.filter(
+      (work) =>
+        !work.is_general && work.work_room_types?.some((wrt: any) => wrt.room_type_id === room.room_type_id),
     );
 
     return roomTypeWorks.map((work) => {
@@ -432,12 +563,12 @@ const ProjectForm = () => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = parseInt(active.id.toString());
-      const newIndex = parseInt(over.id.toString());
+      const oldIndex = parseInt(active.id.toString().split("-")[1]);
+      const newIndex = parseInt(over.id.toString().split("-")[1]);
 
       const newRooms = arrayMove(rooms, oldIndex, newIndex);
       setRooms(newRooms);
-      setActiveTab(newIndex.toString());
+      setActiveTab(`room-${newIndex}`);
     }
   };
 
@@ -486,191 +617,276 @@ const ProjectForm = () => {
           </Button>
         </div>
 
-        {rooms.length > 0 && (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <SortableContext
-                items={rooms.map((_, index) => index.toString())}
-                strategy={horizontalListSortingStrategy}
-              >
-                <TabsList className="w-full justify-start overflow-x-auto">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="w-full justify-start overflow-x-auto">
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("general")}
+                  className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
+                    activeTab === "general"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  General Works
+                </button>
+              </div>
+              {rooms.length > 0 && (
+                <SortableContext
+                  items={rooms.map((_, index) => `room-${index}`)}
+                  strategy={horizontalListSortingStrategy}
+                >
                   {rooms.map((room, index) => (
-                    <SortableTab key={index} id={index.toString()} value={index.toString()}>
+                    <SortableTab key={index} id={`room-${index}`} value={`room-${index}`}>
                       {room.name}
                     </SortableTab>
                   ))}
-                </TabsList>
-              </SortableContext>
+                </SortableContext>
+              )}
+            </TabsList>
 
-              {rooms.map((room, roomIndex) => (
-                <TabsContent key={roomIndex} value={roomIndex.toString()}>
-                  <Card>
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <CardTitle>{room.name}</CardTitle>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeRoom(roomIndex)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+            <TabsContent value="general">
+              <Card>
+                <CardHeader>
+                  <CardTitle>General Works</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {allWorks.filter((w) => w.is_general).length > 0 ? (
+                    <div className="space-y-2">
+                      <Label>Works</Label>
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[50px]">Select</TableHead>
+                              <TableHead>Work</TableHead>
+                              <TableHead>Price/Unit</TableHead>
+                              <TableHead>Unit</TableHead>
+                              <TableHead>Quantity</TableHead>
+                              <TableHead>Subtotal</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {allWorks
+                              .filter((w) => w.is_general)
+                              .map((work) => {
+                                const generalWork = generalWorks.find((gw) => gw.work_id === work.id) || {
+                                  work_id: work.id,
+                                  is_selected: false,
+                                  quantity: 0,
+                                };
+                                return (
+                                  <TableRow key={work.id}>
+                                    <TableCell>
+                                      <Checkbox
+                                        checked={generalWork.is_selected}
+                                        onCheckedChange={(checked) =>
+                                          updateGeneralWork(work.id, "is_selected", checked)
+                                        }
+                                      />
+                                    </TableCell>
+                                    <TableCell>{work.name}</TableCell>
+                                    <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
+                                    <TableCell>{work.unit_type}</TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={generalWork.quantity}
+                                        onChange={(e) =>
+                                          updateGeneralWork(work.id, "quantity", parseFloat(e.target.value) || 0)
+                                        }
+                                        disabled={!generalWork.is_selected}
+                                        className="w-24"
+                                      />
+                                    </TableCell>
+                                    <TableCell>AED {(work.price_per_unit * generalWork.quantity).toFixed(2)}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                          </TableBody>
+                        </Table>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Room Name</Label>
-                          <Input
-                            value={room.name}
-                            onChange={(e) => updateRoom(roomIndex, "name", e.target.value)}
-                            placeholder="Enter room name"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Room Type</Label>
-                          <Select
-                            value={room.room_type_id}
-                            onValueChange={(value) => updateRoom(roomIndex, "room_type_id", value)}
-                            required
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select room type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {roomTypes.map((rt) => (
-                                <SelectItem key={rt.id} value={rt.id}>
-                                  {rt.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="space-y-2">
-                          <Label>Wall Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.wall_area}
-                            onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Opening Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.opening_area}
-                            onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Floor Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.floor_area}
-                            onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Perimeter (m)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.perimeter}
-                            onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)}
-                          />
-                        </div>
-                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">
+                      No general works available. Add some in the Works section.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                      {room.room_type_id && getWorksForRoom(room).length > 0 && (
-                        <div className="space-y-2">
-                          <Label>Works</Label>
-                          <div className="border rounded-lg overflow-hidden">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-[50px]">Select</TableHead>
-                                  <TableHead>Work</TableHead>
-                                  <TableHead>Price/Unit</TableHead>
-                                  <TableHead>Unit</TableHead>
-                                  <TableHead>Quantity</TableHead>
-                                  <TableHead>Subtotal</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {getWorksForRoom(room).map((work) => {
-                                  const roomWork = work.roomWork || {
-                                    work_id: work.id,
-                                    is_selected: false,
-                                    quantity: 0,
-                                  };
-                                  return (
-                                    <TableRow key={work.id}>
-                                      <TableCell>
-                                        <Checkbox
-                                          checked={roomWork.is_selected}
-                                          onCheckedChange={(checked) =>
-                                            updateRoomWork(roomIndex, work.id, "is_selected", checked)
+            {rooms.map((room, roomIndex) => (
+              <TabsContent key={roomIndex} value={`room-${roomIndex}`}>
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>{room.name}</CardTitle>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeRoom(roomIndex)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Room Name</Label>
+                        <Input
+                          value={room.name}
+                          onChange={(e) => updateRoom(roomIndex, "name", e.target.value)}
+                          placeholder="Enter room name"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Room Type</Label>
+                        <Select
+                          value={room.room_type_id}
+                          onValueChange={(value) => updateRoom(roomIndex, "room_type_id", value)}
+                          required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select room type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roomTypes.map((rt) => (
+                              <SelectItem key={rt.id} value={rt.id}>
+                                {rt.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label>Wall Area (m²)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.wall_area}
+                          onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Opening Area (m²)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.opening_area}
+                          onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Floor Area (m²)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.floor_area}
+                          onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Perimeter (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.perimeter}
+                          onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {room.room_type_id && getWorksForRoom(room).length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Works</Label>
+                        <div className="border rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[50px]">Select</TableHead>
+                                <TableHead>Work</TableHead>
+                                <TableHead>Price/Unit</TableHead>
+                                <TableHead>Unit</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead>Subtotal</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getWorksForRoom(room).map((work) => {
+                                const roomWork = work.roomWork || {
+                                  work_id: work.id,
+                                  is_selected: false,
+                                  quantity: 0,
+                                };
+                                return (
+                                  <TableRow key={work.id}>
+                                    <TableCell>
+                                      <Checkbox
+                                        checked={roomWork.is_selected}
+                                        onCheckedChange={(checked) =>
+                                          updateRoomWork(roomIndex, work.id, "is_selected", checked)
+                                        }
+                                      />
+                                    </TableCell>
+                                    <TableCell>{work.name}</TableCell>
+                                    <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
+                                    <TableCell>{work.unit_type}</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={roomWork.quantity}
+                                          onChange={(e) =>
+                                            updateRoomWork(
+                                              roomIndex,
+                                              work.id,
+                                              "quantity",
+                                              parseFloat(e.target.value) || 0,
+                                            )
                                           }
+                                          disabled={!roomWork.is_selected}
+                                          className="w-24"
                                         />
-                                      </TableCell>
-                                      <TableCell>{work.name}</TableCell>
-                                      <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
-                                      <TableCell>{work.unit_type}</TableCell>
-                                      <TableCell>
-                                        <div className="flex items-center gap-2">
-                                          <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={roomWork.quantity}
-                                            onChange={(e) =>
-                                              updateRoomWork(
-                                                roomIndex,
-                                                work.id,
-                                                "quantity",
-                                                parseFloat(e.target.value) || 0,
-                                              )
-                                            }
-                                            disabled={!roomWork.is_selected}
-                                            className="w-24"
-                                          />
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => {
-                                              const calculatedQty = calculateDefaultQuantity(work, room);
-                                              updateRoomWork(roomIndex, work.id, "quantity", calculatedQty);
-                                            }}
-                                            disabled={!roomWork.is_selected}
-                                            className="h-10 w-10"
-                                          >
-                                            <Calculator className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}</TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
-                          <div className="flex justify-end pt-2">
-                            <div className="text-lg font-semibold">
-                              Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
-                            </div>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => {
+                                            const calculatedQty = calculateDefaultQuantity(work, room);
+                                            updateRoomWork(roomIndex, work.id, "quantity", calculatedQty);
+                                          }}
+                                          disabled={!roomWork.is_selected}
+                                          className="h-10 w-10"
+                                        >
+                                          <Calculator className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        <div className="flex justify-end pt-2">
+                          <div className="text-lg font-semibold">
+                            Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
                           </div>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              ))}
-            </Tabs>
-          </DndContext>
-        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </DndContext>
 
         <Card>
           <CardContent className="pt-6">
