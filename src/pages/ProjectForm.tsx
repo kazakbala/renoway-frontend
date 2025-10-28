@@ -6,21 +6,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
@@ -100,7 +87,7 @@ const ProjectForm = () => {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   useEffect(() => {
@@ -119,11 +106,7 @@ const ProjectForm = () => {
     if (worksRes.data) setAllWorks(worksRes.data);
 
     if (id) {
-      const { data: project } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", id)
-        .single();
+      const { data: project } = await supabase.from("projects").select("*").eq("id", id).single();
 
       if (project) {
         setProjectName(project.name);
@@ -131,11 +114,13 @@ const ProjectForm = () => {
 
         const { data: projectRooms } = await supabase
           .from("project_rooms")
-          .select(`
+          .select(
+            `
             *,
             room_types(id, name),
             project_room_works(work_id, is_selected, quantity)
-          `)
+          `,
+          )
           .eq("project_id", id);
 
         if (projectRooms) {
@@ -158,7 +143,7 @@ const ProjectForm = () => {
                 works: worksData,
                 room_types: room.room_types,
               };
-            })
+            }),
           );
           setRooms(roomsData);
         }
@@ -168,11 +153,11 @@ const ProjectForm = () => {
 
   const generateRoomName = (roomTypeId: string, currentRooms: Room[]): string => {
     if (!roomTypeId) return `Room ${currentRooms.length + 1}`;
-    
-    const roomType = roomTypes.find(rt => rt.id === roomTypeId);
+
+    const roomType = roomTypes.find((rt) => rt.id === roomTypeId);
     if (!roomType) return `Room ${currentRooms.length + 1}`;
-    
-    const sameTypeCount = currentRooms.filter(r => r.room_type_id === roomTypeId).length;
+
+    const sameTypeCount = currentRooms.filter((r) => r.room_type_id === roomTypeId).length;
     return `${roomType.name} ${sameTypeCount + 1}`;
   };
 
@@ -209,13 +194,16 @@ const ProjectForm = () => {
     if (field === "room_type_id") {
       // When room type changes, initialize works for that room type and update name
       const roomTypeWorks = allWorks.filter((work) =>
-        work.work_room_types?.some((wrt: any) => wrt.room_type_id === value)
+        work.work_room_types?.some((wrt: any) => wrt.room_type_id === value),
       );
-      
+
       newRooms[index] = {
         ...newRooms[index],
         [field]: value,
-        name: generateRoomName(value, newRooms.filter((_, i) => i !== index)),
+        name: generateRoomName(
+          value,
+          newRooms.filter((_, i) => i !== index),
+        ),
         works: roomTypeWorks.map((work) => ({
           work_id: work.id,
           is_selected: false,
@@ -224,7 +212,7 @@ const ProjectForm = () => {
       };
     } else {
       newRooms[index] = { ...newRooms[index], [field]: value };
-      
+
       // Recalculate quantities based on areas
       if (["opening_area", "wall_area", "floor_area", "perimeter"].includes(field)) {
         newRooms[index].works = newRooms[index].works.map((rw) => {
@@ -244,7 +232,7 @@ const ProjectForm = () => {
     if (!work.calculation_base) {
       return 1;
     }
-    
+
     switch (work.calculation_base) {
       case "floor":
         return parseFloat(room.floor_area) || 0;
@@ -259,15 +247,10 @@ const ProjectForm = () => {
     }
   };
 
-  const updateRoomWork = (
-    roomIndex: number,
-    workId: string,
-    field: "is_selected" | "quantity",
-    value: any
-  ) => {
+  const updateRoomWork = (roomIndex: number, workId: string, field: "is_selected" | "quantity", value: any) => {
     const newRooms = [...rooms];
     const workIndex = newRooms[roomIndex].works.findIndex((w) => w.work_id === workId);
-    
+
     if (field === "is_selected" && value) {
       // Auto-calculate quantity when selecting a work
       const work = allWorks.find((w) => w.id === workId);
@@ -284,7 +267,7 @@ const ProjectForm = () => {
         [field]: value,
       };
     }
-    
+
     setRooms(newRooms);
   };
 
@@ -335,10 +318,10 @@ const ProjectForm = () => {
           .single();
 
         if (projectError) throw projectError;
-        
+
         // Use the newly created project id
         const projectId = project.id;
-        
+
         // Insert rooms and works
         for (const room of rooms) {
           const { data: newRoom, error: roomError } = await supabase
@@ -368,9 +351,7 @@ const ProjectForm = () => {
             }));
 
           if (roomWorks.length > 0) {
-            const { error: worksError } = await supabase
-              .from("project_room_works")
-              .insert(roomWorks);
+            const { error: worksError } = await supabase.from("project_room_works").insert(roomWorks);
 
             if (worksError) throw worksError;
           }
@@ -412,9 +393,7 @@ const ProjectForm = () => {
           }));
 
         if (roomWorks.length > 0) {
-          const { error: worksError } = await supabase
-            .from("project_room_works")
-            .insert(roomWorks);
+          const { error: worksError } = await supabase.from("project_room_works").insert(roomWorks);
 
           if (worksError) throw worksError;
         }
@@ -438,9 +417,9 @@ const ProjectForm = () => {
 
   const getWorksForRoom = (room: Room): (Work & { roomWork?: RoomWork })[] => {
     if (!room.room_type_id) return [];
-    
+
     const roomTypeWorks = allWorks.filter((work) =>
-      work.work_room_types?.some((wrt: any) => wrt.room_type_id === room.room_type_id)
+      work.work_room_types?.some((wrt: any) => wrt.room_type_id === room.room_type_id),
     );
 
     return roomTypeWorks.map((work) => {
@@ -449,14 +428,13 @@ const ProjectForm = () => {
     });
   };
 
-
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
       const oldIndex = parseInt(active.id.toString());
       const newIndex = parseInt(over.id.toString());
-      
+
       const newRooms = arrayMove(rooms, oldIndex, newIndex);
       setRooms(newRooms);
       setActiveTab(newIndex.toString());
@@ -480,12 +458,7 @@ const ProjectForm = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Project Name</Label>
-              <Input
-                id="name"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                required
-              />
+              <Input id="name" value={projectName} onChange={(e) => setProjectName(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="client">Client</Label>
@@ -514,11 +487,7 @@ const ProjectForm = () => {
         </div>
 
         {rooms.length > 0 && (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <SortableContext
                 items={rooms.map((_, index) => index.toString())}
@@ -526,11 +495,7 @@ const ProjectForm = () => {
               >
                 <TabsList className="w-full justify-start overflow-x-auto">
                   {rooms.map((room, index) => (
-                    <SortableTab
-                      key={index}
-                      id={index.toString()}
-                      value={index.toString()}
-                    >
+                    <SortableTab key={index} id={index.toString()} value={index.toString()}>
                       {room.name}
                     </SortableTab>
                   ))}
@@ -543,12 +508,7 @@ const ProjectForm = () => {
                     <CardHeader>
                       <div className="flex justify-between items-center">
                         <CardTitle>{room.name}</CardTitle>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeRoom(roomIndex)}
-                        >
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeRoom(roomIndex)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -586,21 +546,21 @@ const ProjectForm = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                          <Label>Opening Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.opening_area}
-                            onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
                           <Label>Wall Area (m²)</Label>
                           <Input
                             type="number"
                             step="0.01"
                             value={room.wall_area}
                             onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Opening Area (m²)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={room.opening_area}
+                            onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
                           />
                         </div>
                         <div className="space-y-2">
@@ -668,16 +628,14 @@ const ProjectForm = () => {
                                               roomIndex,
                                               work.id,
                                               "quantity",
-                                              parseFloat(e.target.value) || 0
+                                              parseFloat(e.target.value) || 0,
                                             )
                                           }
                                           disabled={!roomWork.is_selected}
                                           className="w-24"
                                         />
                                       </TableCell>
-                                      <TableCell>
-                                        AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}
-                                      </TableCell>
+                                      <TableCell>AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}</TableCell>
                                     </TableRow>
                                   );
                                 })}
@@ -712,11 +670,7 @@ const ProjectForm = () => {
           <Button type="submit" disabled={loading}>
             {loading ? "Saving..." : id ? "Update Project" : "Create Project"}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate("/dashboard/projects")}
-          >
+          <Button type="button" variant="outline" onClick={() => navigate("/dashboard/projects")}>
             Cancel
           </Button>
         </div>
