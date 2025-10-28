@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { TabsTrigger } from "@/components/ui/tabs";
 
 interface SortableTabProps {
   id: string;
@@ -7,7 +8,7 @@ interface SortableTabProps {
   value: string;
 }
 
-export function SortableTab({ id, children }: SortableTabProps) {
+export function SortableTab({ id, children, value }: SortableTabProps) {
   const {
     attributes,
     listeners,
@@ -24,13 +25,14 @@ export function SortableTab({ id, children }: SortableTabProps) {
   };
 
   return (
-    <div
+    <TabsTrigger
       ref={setNodeRef}
       style={style}
+      value={value}
       {...attributes}
       {...listeners}
     >
       {children}
-    </div>
+    </TabsTrigger>
   );
 }
