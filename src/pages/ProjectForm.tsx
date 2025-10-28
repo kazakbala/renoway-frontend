@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
 import { SortableTab } from "@/components/SortableTab";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -505,195 +504,171 @@ const ProjectForm = () => {
           </CardContent>
         </Card>
 
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Rooms</h2>
-          <Button type="button" onClick={addRoom} variant="outline">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Room
-          </Button>
-        </div>
-
         {rooms.length > 0 && (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <SortableContext
-                items={rooms.map((_, index) => index.toString())}
-                strategy={horizontalListSortingStrategy}
+            {rooms.map((room, roomIndex) => (
+              <div
+                key={roomIndex}
+                style={{ display: activeTab === roomIndex.toString() ? "block" : "none" }}
               >
-                <TabsList className="w-full justify-start overflow-x-auto">
-                  {rooms.map((room, index) => (
-                    <SortableTab
-                      key={index}
-                      id={index.toString()}
-                      value={index.toString()}
-                    >
-                      {room.name}
-                    </SortableTab>
-                  ))}
-                </TabsList>
-              </SortableContext>
-
-              {rooms.map((room, roomIndex) => (
-                <TabsContent key={roomIndex} value={roomIndex.toString()}>
-                  <Card>
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <CardTitle>{room.name}</CardTitle>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeRoom(roomIndex)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>{room.name}</CardTitle>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeRoom(roomIndex)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Room Name</Label>
+                      <Input
+                        value={room.name}
+                        onChange={(e) => updateRoom(roomIndex, "name", e.target.value)}
+                        placeholder="Enter room name"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Room Name</Label>
-                        <Input
-                          value={room.name}
-                          onChange={(e) => updateRoom(roomIndex, "name", e.target.value)}
-                          placeholder="Enter room name"
+                        <Label>Room Type</Label>
+                        <Select
+                          value={room.room_type_id}
+                          onValueChange={(value) => updateRoom(roomIndex, "room_type_id", value)}
                           required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select room type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roomTypes.map((rt) => (
+                              <SelectItem key={rt.id} value={rt.id}>
+                                {rt.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Opening Area (m²)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.opening_area}
+                          onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
                         />
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Room Type</Label>
-                          <Select
-                            value={room.room_type_id}
-                            onValueChange={(value) => updateRoom(roomIndex, "room_type_id", value)}
-                            required
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select room type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {roomTypes.map((rt) => (
-                                <SelectItem key={rt.id} value={rt.id}>
-                                  {rt.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <div className="space-y-2">
+                        <Label>Wall Area (m²)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.wall_area}
+                          onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Floor Area (m²)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.floor_area}
+                          onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Perimeter (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={room.perimeter}
+                          onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {room.room_type_id && getWorksForRoom(room).length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Works</Label>
+                        <div className="border rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[50px]">Select</TableHead>
+                                <TableHead>Work</TableHead>
+                                <TableHead>Price/Unit</TableHead>
+                                <TableHead>Unit</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead>Subtotal</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getWorksForRoom(room).map((work) => {
+                                const roomWork = work.roomWork || {
+                                  work_id: work.id,
+                                  is_selected: false,
+                                  quantity: 0,
+                                };
+                                return (
+                                  <TableRow key={work.id}>
+                                    <TableCell>
+                                      <Checkbox
+                                        checked={roomWork.is_selected}
+                                        onCheckedChange={(checked) =>
+                                          updateRoomWork(roomIndex, work.id, "is_selected", checked)
+                                        }
+                                      />
+                                    </TableCell>
+                                    <TableCell>{work.name}</TableCell>
+                                    <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
+                                    <TableCell>{work.unit_type}</TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={roomWork.quantity}
+                                        onChange={(e) =>
+                                          updateRoomWork(
+                                            roomIndex,
+                                            work.id,
+                                            "quantity",
+                                            parseFloat(e.target.value) || 0
+                                          )
+                                        }
+                                        disabled={!roomWork.is_selected}
+                                        className="w-24"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Opening Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.opening_area}
-                            onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Wall Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.wall_area}
-                            onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Floor Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.floor_area}
-                            onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Perimeter (m)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.perimeter}
-                            onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)}
-                          />
+                        <div className="flex justify-end pt-2">
+                          <div className="text-lg font-semibold">
+                            Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
+                          </div>
                         </div>
                       </div>
-
-                      {room.room_type_id && getWorksForRoom(room).length > 0 && (
-                        <div className="space-y-2">
-                          <Label>Works</Label>
-                          <div className="border rounded-lg overflow-hidden">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-[50px]">Select</TableHead>
-                                  <TableHead>Work</TableHead>
-                                  <TableHead>Price/Unit</TableHead>
-                                  <TableHead>Unit</TableHead>
-                                  <TableHead>Quantity</TableHead>
-                                  <TableHead>Subtotal</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {getWorksForRoom(room).map((work) => {
-                                  const roomWork = work.roomWork || {
-                                    work_id: work.id,
-                                    is_selected: false,
-                                    quantity: 0,
-                                  };
-                                  return (
-                                    <TableRow key={work.id}>
-                                      <TableCell>
-                                        <Checkbox
-                                          checked={roomWork.is_selected}
-                                          onCheckedChange={(checked) =>
-                                            updateRoomWork(roomIndex, work.id, "is_selected", checked)
-                                          }
-                                        />
-                                      </TableCell>
-                                      <TableCell>{work.name}</TableCell>
-                                      <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
-                                      <TableCell>{work.unit_type}</TableCell>
-                                      <TableCell>
-                                        <Input
-                                          type="number"
-                                          step="0.01"
-                                          value={roomWork.quantity}
-                                          onChange={(e) =>
-                                            updateRoomWork(
-                                              roomIndex,
-                                              work.id,
-                                              "quantity",
-                                              parseFloat(e.target.value) || 0
-                                            )
-                                          }
-                                          disabled={!roomWork.is_selected}
-                                          className="w-24"
-                                        />
-                                      </TableCell>
-                                      <TableCell>
-                                        AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
-                          <div className="flex justify-end pt-2">
-                            <div className="text-lg font-semibold">
-                              Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              ))}
-            </Tabs>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
           </DndContext>
         )}
 
@@ -706,17 +681,65 @@ const ProjectForm = () => {
           </CardContent>
         </Card>
 
-        <div className="flex gap-4">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : id ? "Update Project" : "Create Project"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate("/dashboard/projects")}
-          >
-            Cancel
-          </Button>
+        {/* Spacer for floating footer */}
+        <div className="h-32" />
+
+        {/* Floating Footer */}
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg z-50">
+          <div className="container mx-auto px-4 py-4">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="flex items-center gap-4 overflow-x-auto pb-2">
+                <SortableContext
+                  items={rooms.map((_, index) => index.toString())}
+                  strategy={horizontalListSortingStrategy}
+                >
+                  <div className="flex gap-2 flex-1 overflow-x-auto">
+                    {rooms.map((room, index) => (
+                      <SortableTab
+                        key={index}
+                        id={index.toString()}
+                        value={index.toString()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab(index.toString())}
+                          className={`px-4 py-2 rounded-md whitespace-nowrap transition-colors ${
+                            activeTab === index.toString()
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                        >
+                          {room.name}
+                        </button>
+                      </SortableTab>
+                    ))}
+                  </div>
+                </SortableContext>
+                
+                <div className="flex gap-2 shrink-0">
+                  <Button type="button" onClick={addRoom} variant="outline" size="sm">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Room
+                  </Button>
+                  <Button type="submit" disabled={loading} size="sm">
+                    {loading ? "Saving..." : id ? "Update" : "Save"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate("/dashboard/projects")}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </DndContext>
+          </div>
         </div>
       </form>
     </div>
