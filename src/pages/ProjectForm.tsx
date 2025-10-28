@@ -23,7 +23,26 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
+import { SortableTab } from "@/components/SortableTab";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Client {
   id: string;
@@ -74,6 +93,14 @@ const ProjectForm = () => {
   const [allWorks, setAllWorks] = useState<Work[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("0");
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     loadData();
@@ -138,7 +165,7 @@ const ProjectForm = () => {
   };
 
   const addRoom = () => {
-    setRooms([
+    const newRooms = [
       ...rooms,
       {
         room_type_id: "",
@@ -148,11 +175,20 @@ const ProjectForm = () => {
         perimeter: "",
         works: [],
       },
-    ]);
+    ];
+    setRooms(newRooms);
+    setActiveTab((newRooms.length - 1).toString());
   };
 
   const removeRoom = (index: number) => {
-    setRooms(rooms.filter((_, i) => i !== index));
+    const newRooms = rooms.filter((_, i) => i !== index);
+    setRooms(newRooms);
+    // Switch to first tab if current tab is removed
+    if (parseInt(activeTab) === index && newRooms.length > 0) {
+      setActiveTab("0");
+    } else if (parseInt(activeTab) > index) {
+      setActiveTab((parseInt(activeTab) - 1).toString());
+    }
   };
 
   const updateRoom = (index: number, field: keyof Room, value: any) => {
@@ -397,6 +433,34 @@ const ProjectForm = () => {
     });
   };
 
+  const getRoomTabName = (room: Room, index: number): string => {
+    if (!room.room_type_id) return `Room ${index + 1}`;
+    
+    const roomType = roomTypes.find(rt => rt.id === room.room_type_id);
+    if (!roomType) return `Room ${index + 1}`;
+    
+    // Count how many rooms of the same type exist before this one
+    const sameTypeIndex = rooms
+      .slice(0, index + 1)
+      .filter(r => r.room_type_id === room.room_type_id)
+      .length;
+    
+    return `${roomType.name} ${sameTypeIndex}`;
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = parseInt(active.id.toString());
+      const newIndex = parseInt(over.id.toString());
+      
+      const newRooms = arrayMove(rooms, oldIndex, newIndex);
+      setRooms(newRooms);
+      setActiveTab(newIndex.toString());
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -447,154 +511,180 @@ const ProjectForm = () => {
           </Button>
         </div>
 
-        {rooms.map((room, roomIndex) => (
-          <Card key={roomIndex}>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>
-                  Room {roomIndex + 1}
-                  {room.room_types && ` - ${room.room_types.name}`}
-                </CardTitle>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeRoom(roomIndex)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Room Type</Label>
-                  <Select
-                    value={room.room_type_id}
-                    onValueChange={(value) => updateRoom(roomIndex, "room_type_id", value)}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select room type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roomTypes.map((rt) => (
-                        <SelectItem key={rt.id} value={rt.id}>
-                          {rt.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Opening Area (m²)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={room.opening_area}
-                    onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Wall Area (m²)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={room.wall_area}
-                    onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Floor Area (m²)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={room.floor_area}
-                    onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Perimeter (m)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={room.perimeter}
-                    onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)}
-                  />
-                </div>
-              </div>
+        {rooms.length > 0 && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <SortableContext
+                items={rooms.map((_, index) => index.toString())}
+                strategy={horizontalListSortingStrategy}
+              >
+                <TabsList className="w-full justify-start overflow-x-auto">
+                  {rooms.map((room, index) => (
+                    <SortableTab
+                      key={index}
+                      id={index.toString()}
+                      value={index.toString()}
+                    >
+                      {getRoomTabName(room, index)}
+                    </SortableTab>
+                  ))}
+                </TabsList>
+              </SortableContext>
 
-              {room.room_type_id && getWorksForRoom(room).length > 0 && (
-                <div className="space-y-2">
-                  <Label>Works</Label>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[50px]">Select</TableHead>
-                          <TableHead>Work</TableHead>
-                          <TableHead>Price/Unit</TableHead>
-                          <TableHead>Unit</TableHead>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead>Subtotal</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {getWorksForRoom(room).map((work) => {
-                          const roomWork = work.roomWork || {
-                            work_id: work.id,
-                            is_selected: false,
-                            quantity: 0,
-                          };
-                          return (
-                            <TableRow key={work.id}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={roomWork.is_selected}
-                                  onCheckedChange={(checked) =>
-                                    updateRoomWork(roomIndex, work.id, "is_selected", checked)
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell>{work.name}</TableCell>
-                              <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
-                              <TableCell>{work.unit_type}</TableCell>
-                              <TableCell>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={roomWork.quantity}
-                                  onChange={(e) =>
-                                    updateRoomWork(
-                                      roomIndex,
-                                      work.id,
-                                      "quantity",
-                                      parseFloat(e.target.value) || 0
-                                    )
-                                  }
-                                  disabled={!roomWork.is_selected}
-                                  className="w-24"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <div className="flex justify-end pt-2">
-                    <div className="text-lg font-semibold">
-                      Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+              {rooms.map((room, roomIndex) => (
+                <TabsContent key={roomIndex} value={roomIndex.toString()}>
+                  <Card>
+                    <CardHeader>
+                      <div className="flex justify-between items-center">
+                        <CardTitle>{getRoomTabName(room, roomIndex)}</CardTitle>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeRoom(roomIndex)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Room Type</Label>
+                          <Select
+                            value={room.room_type_id}
+                            onValueChange={(value) => updateRoom(roomIndex, "room_type_id", value)}
+                            required
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select room type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {roomTypes.map((rt) => (
+                                <SelectItem key={rt.id} value={rt.id}>
+                                  {rt.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Opening Area (m²)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={room.opening_area}
+                            onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Wall Area (m²)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={room.wall_area}
+                            onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Floor Area (m²)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={room.floor_area}
+                            onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Perimeter (m)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={room.perimeter}
+                            onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {room.room_type_id && getWorksForRoom(room).length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Works</Label>
+                          <div className="border rounded-lg overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-[50px]">Select</TableHead>
+                                  <TableHead>Work</TableHead>
+                                  <TableHead>Price/Unit</TableHead>
+                                  <TableHead>Unit</TableHead>
+                                  <TableHead>Quantity</TableHead>
+                                  <TableHead>Subtotal</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {getWorksForRoom(room).map((work) => {
+                                  const roomWork = work.roomWork || {
+                                    work_id: work.id,
+                                    is_selected: false,
+                                    quantity: 0,
+                                  };
+                                  return (
+                                    <TableRow key={work.id}>
+                                      <TableCell>
+                                        <Checkbox
+                                          checked={roomWork.is_selected}
+                                          onCheckedChange={(checked) =>
+                                            updateRoomWork(roomIndex, work.id, "is_selected", checked)
+                                          }
+                                        />
+                                      </TableCell>
+                                      <TableCell>{work.name}</TableCell>
+                                      <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
+                                      <TableCell>{work.unit_type}</TableCell>
+                                      <TableCell>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={roomWork.quantity}
+                                          onChange={(e) =>
+                                            updateRoomWork(
+                                              roomIndex,
+                                              work.id,
+                                              "quantity",
+                                              parseFloat(e.target.value) || 0
+                                            )
+                                          }
+                                          disabled={!roomWork.is_selected}
+                                          className="w-24"
+                                        />
+                                      </TableCell>
+                                      <TableCell>
+                                        AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          <div className="flex justify-end pt-2">
+                            <div className="text-lg font-semibold">
+                              Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </DndContext>
+        )}
 
         <Card>
           <CardContent className="pt-6">
