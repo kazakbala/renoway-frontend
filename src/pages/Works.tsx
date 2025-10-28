@@ -83,7 +83,7 @@ const Works = () => {
     unit_type: "m2",
     price_per_unit: "",
     category_id: "",
-    calculation_base: "",
+    calculation_base: "none",
     room_type_ids: [] as string[],
   });
 
@@ -151,7 +151,7 @@ const Works = () => {
       unit_type: formData.unit_type,
       price_per_unit: parseFloat(formData.price_per_unit),
       category_id: formData.category_id || null,
-      calculation_base: formData.calculation_base || null,
+      calculation_base: formData.calculation_base === "none" ? null : formData.calculation_base,
     };
 
     if (editingWork) {
@@ -291,7 +291,7 @@ const Works = () => {
       unit_type: "m2",
       price_per_unit: "",
       category_id: "",
-      calculation_base: "",
+      calculation_base: "none",
       room_type_ids: [],
     });
   };
@@ -304,7 +304,7 @@ const Works = () => {
       unit_type: work.unit_type,
       price_per_unit: work.price_per_unit.toString(),
       category_id: work.category_id || "",
-      calculation_base: work.calculation_base || "",
+      calculation_base: work.calculation_base || "none",
       room_type_ids: work.room_type_ids || [],
     });
     setOpen(true);
@@ -498,7 +498,7 @@ const Works = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         <SelectItem value="wall">Wall</SelectItem>
                         <SelectItem value="floor">Floor</SelectItem>
                         <SelectItem value="perimeter">Perimeter</SelectItem>
