@@ -72,6 +72,7 @@ interface RoomWork {
 
 interface Room {
   id?: string;
+  name: string;
   room_type_id: string;
   opening_area: string;
   wall_area: string;
@@ -146,8 +147,19 @@ const ProjectForm = () => {
                 quantity: w.quantity,
               }));
 
+              // Generate room name based on room type and count
+              const sameTypeIndex = projectRooms
+                .slice(0, projectRooms.indexOf(room) + 1)
+                .filter((r: any) => r.room_type_id === room.room_type_id)
+                .length;
+              
+              const roomName = room.room_types 
+                ? `${room.room_types.name} ${sameTypeIndex}`
+                : `Room ${projectRooms.indexOf(room) + 1}`;
+
               return {
                 id: room.id,
+                name: roomName,
                 room_type_id: room.room_type_id,
                 opening_area: room.opening_area?.toString() || "",
                 wall_area: room.wall_area?.toString() || "",
@@ -164,10 +176,21 @@ const ProjectForm = () => {
     }
   };
 
+  const generateRoomName = (roomTypeId: string, currentRooms: Room[]): string => {
+    if (!roomTypeId) return `Room ${currentRooms.length + 1}`;
+    
+    const roomType = roomTypes.find(rt => rt.id === roomTypeId);
+    if (!roomType) return `Room ${currentRooms.length + 1}`;
+    
+    const sameTypeCount = currentRooms.filter(r => r.room_type_id === roomTypeId).length;
+    return `${roomType.name} ${sameTypeCount + 1}`;
+  };
+
   const addRoom = () => {
     const newRooms = [
       ...rooms,
       {
+        name: `Room ${rooms.length + 1}`,
         room_type_id: "",
         opening_area: "",
         wall_area: "",
@@ -194,7 +217,7 @@ const ProjectForm = () => {
   const updateRoom = (index: number, field: keyof Room, value: any) => {
     const newRooms = [...rooms];
     if (field === "room_type_id") {
-      // When room type changes, initialize works for that room type
+      // When room type changes, initialize works for that room type and update name
       const roomTypeWorks = allWorks.filter((work) =>
         work.work_room_types?.some((wrt: any) => wrt.room_type_id === value)
       );
@@ -202,6 +225,7 @@ const ProjectForm = () => {
       newRooms[index] = {
         ...newRooms[index],
         [field]: value,
+        name: generateRoomName(value, newRooms.filter((_, i) => i !== index)),
         works: roomTypeWorks.map((work) => ({
           work_id: work.id,
           is_selected: false,
@@ -433,20 +457,6 @@ const ProjectForm = () => {
     });
   };
 
-  const getRoomTabName = (room: Room, index: number): string => {
-    if (!room.room_type_id) return `Room ${index + 1}`;
-    
-    const roomType = roomTypes.find(rt => rt.id === room.room_type_id);
-    if (!roomType) return `Room ${index + 1}`;
-    
-    // Count how many rooms of the same type exist before this one
-    const sameTypeIndex = rooms
-      .slice(0, index + 1)
-      .filter(r => r.room_type_id === room.room_type_id)
-      .length;
-    
-    return `${roomType.name} ${sameTypeIndex}`;
-  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -529,7 +539,7 @@ const ProjectForm = () => {
                       id={index.toString()}
                       value={index.toString()}
                     >
-                      {getRoomTabName(room, index)}
+                      {room.name}
                     </SortableTab>
                   ))}
                 </TabsList>
@@ -540,7 +550,7 @@ const ProjectForm = () => {
                   <Card>
                     <CardHeader>
                       <div className="flex justify-between items-center">
-                        <CardTitle>{getRoomTabName(room, roomIndex)}</CardTitle>
+                        <CardTitle>{room.name}</CardTitle>
                         <Button
                           type="button"
                           variant="ghost"
