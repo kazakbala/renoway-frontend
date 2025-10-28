@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calculator } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -619,21 +619,36 @@ const ProjectForm = () => {
                                       <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
                                       <TableCell>{work.unit_type}</TableCell>
                                       <TableCell>
-                                        <Input
-                                          type="number"
-                                          step="0.01"
-                                          value={roomWork.quantity}
-                                          onChange={(e) =>
-                                            updateRoomWork(
-                                              roomIndex,
-                                              work.id,
-                                              "quantity",
-                                              parseFloat(e.target.value) || 0,
-                                            )
-                                          }
-                                          disabled={!roomWork.is_selected}
-                                          className="w-24"
-                                        />
+                                        <div className="flex items-center gap-2">
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={roomWork.quantity}
+                                            onChange={(e) =>
+                                              updateRoomWork(
+                                                roomIndex,
+                                                work.id,
+                                                "quantity",
+                                                parseFloat(e.target.value) || 0,
+                                              )
+                                            }
+                                            disabled={!roomWork.is_selected}
+                                            className="w-24"
+                                          />
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                              const calculatedQty = calculateDefaultQuantity(work, room);
+                                              updateRoomWork(roomIndex, work.id, "quantity", calculatedQty);
+                                            }}
+                                            disabled={!roomWork.is_selected}
+                                            className="h-10 w-10"
+                                          >
+                                            <Calculator className="h-4 w-4" />
+                                          </Button>
+                                        </div>
                                       </TableCell>
                                       <TableCell>AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}</TableCell>
                                     </TableRow>
