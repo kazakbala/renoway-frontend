@@ -191,15 +191,21 @@ const ProjectForm = () => {
   };
 
   const calculateDefaultQuantity = (work: Work, room: Room): number => {
+    if (!work.calculation_base) {
+      return 1;
+    }
+    
     switch (work.calculation_base) {
       case "floor":
         return parseFloat(room.floor_area) || 0;
       case "wall":
-        return parseFloat(room.wall_area) || 0;
+        const wallArea = parseFloat(room.wall_area) || 0;
+        const openingArea = parseFloat(room.opening_area) || 0;
+        return wallArea - openingArea;
       case "perimeter":
         return parseFloat(room.perimeter) || 0;
       default:
-        return 0;
+        return 1;
     }
   };
 
