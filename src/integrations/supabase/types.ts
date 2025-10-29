@@ -182,6 +182,7 @@ export type Database = {
           id: string
           name: string
           price_multiplier: number | null
+          timeline_categories: Json | null
           updated_at: string
           user_id: string
         }
@@ -193,6 +194,7 @@ export type Database = {
           id?: string
           name: string
           price_multiplier?: number | null
+          timeline_categories?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -204,6 +206,7 @@ export type Database = {
           id?: string
           name?: string
           price_multiplier?: number | null
+          timeline_categories?: Json | null
           updated_at?: string
           user_id?: string
         }

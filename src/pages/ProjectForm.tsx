@@ -85,6 +85,7 @@ const ProjectForm = () => {
   const [priceMultiplier, setPriceMultiplier] = useState<number>(1);
   const [discount, setDiscount] = useState<number>(0);
   const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
+  const [timelineCategories, setTimelineCategories] = useState<Array<{ id: string; name: string; weeks: number }>>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -117,6 +118,7 @@ const ProjectForm = () => {
         setPriceMultiplier(project.price_multiplier || 1);
         setDiscount(project.discount || 0);
         setDiscountType((project.discount_type as "amount" | "percentage") || "amount");
+        setTimelineCategories((project.timeline_categories as Array<{ id: string; name: string; weeks: number }>) || []);
 
         const { data: projectRooms } = await supabase
           .from("project_rooms")
@@ -309,7 +311,8 @@ const ProjectForm = () => {
             client_id: clientId,
             price_multiplier: priceMultiplier,
             discount: discount,
-            discount_type: discountType
+            discount_type: discountType,
+            timeline_categories: timelineCategories
           })
           .eq("id", id);
 
@@ -327,7 +330,8 @@ const ProjectForm = () => {
             user_id: user.id,
             price_multiplier: priceMultiplier,
             discount: discount,
-            discount_type: discountType
+            discount_type: discountType,
+            timeline_categories: timelineCategories
           })
           .select()
           .single();
@@ -761,6 +765,74 @@ const ProjectForm = () => {
                     : discount;
                   return ((subtotal - discountAmount) * 1.05).toFixed(2);
                 })()}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Project Timeline</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {timelineCategories.map((category, index) => (
+                <div key={category.id} className="flex items-center gap-2">
+                  <Input
+                    value={category.name}
+                    onChange={(e) => {
+                      const updated = [...timelineCategories];
+                      updated[index].name = e.target.value;
+                      setTimelineCategories(updated);
+                    }}
+                    className="flex-1"
+                    placeholder="Phase name"
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={category.weeks}
+                    onChange={(e) => {
+                      const updated = [...timelineCategories];
+                      updated[index].weeks = parseFloat(e.target.value) || 0;
+                      setTimelineCategories(updated);
+                    }}
+                    className="w-24"
+                    placeholder="Weeks"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setTimelineCategories(timelineCategories.filter((_, i) => i !== index));
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setTimelineCategories([
+                  ...timelineCategories,
+                  { id: crypto.randomUUID(), name: "New Phase", weeks: 1 }
+                ]);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Phase
+            </Button>
+
+            <div className="pt-4 border-t">
+              <div className="flex justify-between items-center text-xl font-bold">
+                <span>Total Duration:</span>
+                <span>{timelineCategories.reduce((sum, cat) => sum + cat.weeks, 0)} weeks</span>
               </div>
             </div>
           </CardContent>
