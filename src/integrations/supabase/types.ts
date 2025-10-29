@@ -177,24 +177,33 @@ export type Database = {
         Row: {
           client_id: string
           created_at: string
+          discount: number | null
+          discount_type: string | null
           id: string
           name: string
+          price_multiplier: number | null
           updated_at: string
           user_id: string
         }
         Insert: {
           client_id: string
           created_at?: string
+          discount?: number | null
+          discount_type?: string | null
           id?: string
           name: string
+          price_multiplier?: number | null
           updated_at?: string
           user_id: string
         }
         Update: {
           client_id?: string
           created_at?: string
+          discount?: number | null
+          discount_type?: string | null
           id?: string
           name?: string
+          price_multiplier?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -269,6 +278,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_general: boolean
           name: string
           price_per_unit: number
           unit_type: string
@@ -280,6 +290,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_general?: boolean
           name: string
           price_per_unit: number
           unit_type: string
@@ -291,6 +302,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_general?: boolean
           name?: string
           price_per_unit?: number
           unit_type?: string

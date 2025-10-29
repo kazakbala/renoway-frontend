@@ -114,6 +114,9 @@ const ProjectForm = () => {
       if (project) {
         setProjectName(project.name);
         setClientId(project.client_id);
+        setPriceMultiplier(project.price_multiplier || 1);
+        setDiscount(project.discount || 0);
+        setDiscountType((project.discount_type as "amount" | "percentage") || "amount");
 
         const { data: projectRooms } = await supabase
           .from("project_rooms")
@@ -301,7 +304,13 @@ const ProjectForm = () => {
         // Update project
         const { error: projectError } = await supabase
           .from("projects")
-          .update({ name: projectName, client_id: clientId })
+          .update({ 
+            name: projectName, 
+            client_id: clientId,
+            price_multiplier: priceMultiplier,
+            discount: discount,
+            discount_type: discountType
+          })
           .eq("id", id);
 
         if (projectError) throw projectError;
@@ -316,6 +325,9 @@ const ProjectForm = () => {
             name: projectName,
             client_id: clientId,
             user_id: user.id,
+            price_multiplier: priceMultiplier,
+            discount: discount,
+            discount_type: discountType
           })
           .select()
           .single();
