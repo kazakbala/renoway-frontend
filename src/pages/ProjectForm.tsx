@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Calculator } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calculator, GripVertical } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
 import { SortableTab } from "@/components/SortableTab";
+import { SortableTimelineItem } from "@/components/SortableTimelineItem";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DndContext,
@@ -28,6 +29,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   horizontalListSortingStrategy,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -460,6 +462,17 @@ const ProjectForm = () => {
     }
   };
 
+  const handleTimelineDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = timelineCategories.findIndex((cat) => cat.id === active.id);
+      const newIndex = timelineCategories.findIndex((cat) => cat.id === over.id);
+
+      setTimelineCategories(arrayMove(timelineCategories, oldIndex, newIndex));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -775,45 +788,34 @@ const ProjectForm = () => {
             <CardTitle>Project Timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-3">
-              {timelineCategories.map((category, index) => (
-                <div key={category.id} className="flex items-center gap-2">
-                  <Input
-                    value={category.name}
-                    onChange={(e) => {
-                      const updated = [...timelineCategories];
-                      updated[index].name = e.target.value;
-                      setTimelineCategories(updated);
-                    }}
-                    className="flex-1"
-                    placeholder="Phase name"
-                  />
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={category.days}
-                    onChange={(e) => {
-                      const updated = [...timelineCategories];
-                      updated[index].days = parseFloat(e.target.value) || 0;
-                      setTimelineCategories(updated);
-                    }}
-                    className="w-24"
-                    placeholder="Days"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setTimelineCategories(timelineCategories.filter((_, i) => i !== index));
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleTimelineDragEnd}
+            >
+              <SortableContext
+                items={timelineCategories.map((cat) => cat.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {timelineCategories.map((category, index) => (
+                    <SortableTimelineItem
+                      key={category.id}
+                      category={category}
+                      index={index}
+                      onUpdate={(field, value) => {
+                        const updated = [...timelineCategories];
+                        updated[index] = { ...updated[index], [field]: value };
+                        setTimelineCategories(updated);
+                      }}
+                      onDelete={() => {
+                        setTimelineCategories(timelineCategories.filter((_, i) => i !== index));
+                      }}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
             
             <Button
               type="button"
