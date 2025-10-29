@@ -82,6 +82,8 @@ const ProjectForm = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("0");
+  const [priceMultiplier, setPriceMultiplier] = useState<number>(1);
+  const [discount, setDiscount] = useState<number>(0);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -673,10 +675,53 @@ const ProjectForm = () => {
         )}
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center text-2xl font-bold">
-              <span>Project Total:</span>
-              <span>AED {calculateProjectTotal().toFixed(2)}</span>
+          <CardContent className="pt-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="priceMultiplier">Price Multiplier</Label>
+                <Input
+                  id="priceMultiplier"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={priceMultiplier}
+                  onChange={(e) => setPriceMultiplier(parseFloat(e.target.value) || 1)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="discount">Discount (AED)</Label>
+                <Input
+                  id="discount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={discount}
+                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2 pt-4 border-t">
+              <div className="flex justify-between items-center text-lg">
+                <span>Subtotal:</span>
+                <span>AED {calculateProjectTotal().toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-lg">
+                <span>After Multiplier ({priceMultiplier}x):</span>
+                <span>AED {(calculateProjectTotal() * priceMultiplier).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-lg">
+                <span>After Discount:</span>
+                <span>AED {(calculateProjectTotal() * priceMultiplier - discount).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-lg">
+                <span>VAT (5%):</span>
+                <span>AED {((calculateProjectTotal() * priceMultiplier - discount) * 0.05).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-2xl font-bold pt-2 border-t">
+                <span>Grand Total:</span>
+                <span>AED {((calculateProjectTotal() * priceMultiplier - discount) * 1.05).toFixed(2)}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
