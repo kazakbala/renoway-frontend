@@ -282,7 +282,7 @@ const ProjectForm = () => {
       if (rw.is_selected) {
         const work = allWorks.find((w) => w.id === rw.work_id);
         if (work) {
-          return sum + work.price_per_unit * rw.quantity;
+          return sum + work.price_per_unit * priceMultiplier * rw.quantity;
         }
       }
       return sum;
@@ -665,7 +665,7 @@ const ProjectForm = () => {
                                           </Button>
                                         </div>
                                       </TableCell>
-                                      <TableCell>AED {(work.price_per_unit * roomWork.quantity).toFixed(2)}</TableCell>
+                                      <TableCell>AED {(work.price_per_unit * priceMultiplier * roomWork.quantity).toFixed(2)}</TableCell>
                                     </TableRow>
                                   );
                                 })}
@@ -729,41 +729,37 @@ const ProjectForm = () => {
             
             <div className="space-y-2 pt-4 border-t">
               <div className="flex justify-between items-center text-lg">
-                <span>Subtotal:</span>
+                <span>Subtotal (with {priceMultiplier}x multiplier):</span>
                 <span>AED {calculateProjectTotal().toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center text-lg">
-                <span>After Multiplier ({priceMultiplier}x):</span>
-                <span>AED {(calculateProjectTotal() * priceMultiplier).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-lg">
                 <span>After Discount{discountType === "percentage" ? ` (${discount}%)` : ""}:</span>
                 <span>AED {(() => {
-                  const afterMultiplier = calculateProjectTotal() * priceMultiplier;
+                  const subtotal = calculateProjectTotal();
                   const discountAmount = discountType === "percentage" 
-                    ? afterMultiplier * (discount / 100)
+                    ? subtotal * (discount / 100)
                     : discount;
-                  return (afterMultiplier - discountAmount).toFixed(2);
+                  return (subtotal - discountAmount).toFixed(2);
                 })()}</span>
               </div>
               <div className="flex justify-between items-center text-lg">
                 <span>VAT (5%):</span>
                 <span>AED {(() => {
-                  const afterMultiplier = calculateProjectTotal() * priceMultiplier;
+                  const subtotal = calculateProjectTotal();
                   const discountAmount = discountType === "percentage" 
-                    ? afterMultiplier * (discount / 100)
+                    ? subtotal * (discount / 100)
                     : discount;
-                  return ((afterMultiplier - discountAmount) * 0.05).toFixed(2);
+                  return ((subtotal - discountAmount) * 0.05).toFixed(2);
                 })()}</span>
               </div>
               <div className="flex justify-between items-center text-2xl font-bold pt-2 border-t">
                 <span>Grand Total:</span>
                 <span>AED {(() => {
-                  const afterMultiplier = calculateProjectTotal() * priceMultiplier;
+                  const subtotal = calculateProjectTotal();
                   const discountAmount = discountType === "percentage" 
-                    ? afterMultiplier * (discount / 100)
+                    ? subtotal * (discount / 100)
                     : discount;
-                  return ((afterMultiplier - discountAmount) * 1.05).toFixed(2);
+                  return ((subtotal - discountAmount) * 1.05).toFixed(2);
                 })()}</span>
               </div>
             </div>
