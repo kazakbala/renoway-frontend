@@ -382,7 +382,7 @@ const ProjectForm = () => {
           title: "Success",
           description: "Project created successfully.",
         });
-        navigate("/dashboard/projects");
+        navigate(`/dashboard/projects/${projectId}`);
         return;
       }
 
@@ -424,7 +424,6 @@ const ProjectForm = () => {
         title: "Success",
         description: "Project updated successfully.",
       });
-      navigate("/dashboard/projects");
     } catch (error: any) {
       toast({
         title: "Error",
