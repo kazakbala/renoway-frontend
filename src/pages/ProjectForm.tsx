@@ -85,7 +85,7 @@ const ProjectForm = () => {
   const [priceMultiplier, setPriceMultiplier] = useState<number>(1);
   const [discount, setDiscount] = useState<number>(0);
   const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
-  const [timelineCategories, setTimelineCategories] = useState<Array<{ id: string; name: string; weeks: number }>>([]);
+  const [timelineCategories, setTimelineCategories] = useState<Array<{ id: string; name: string; days: number }>>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -118,7 +118,7 @@ const ProjectForm = () => {
         setPriceMultiplier(project.price_multiplier || 1);
         setDiscount(project.discount || 0);
         setDiscountType((project.discount_type as "amount" | "percentage") || "amount");
-        setTimelineCategories((project.timeline_categories as Array<{ id: string; name: string; weeks: number }>) || []);
+        setTimelineCategories((project.timeline_categories as Array<{ id: string; name: string; days: number }>) || []);
 
         const { data: projectRooms } = await supabase
           .from("project_rooms")
@@ -792,14 +792,14 @@ const ProjectForm = () => {
                     type="number"
                     min="0"
                     step="1"
-                    value={category.weeks}
+                    value={category.days}
                     onChange={(e) => {
                       const updated = [...timelineCategories];
-                      updated[index].weeks = parseFloat(e.target.value) || 0;
+                      updated[index].days = parseFloat(e.target.value) || 0;
                       setTimelineCategories(updated);
                     }}
                     className="w-24"
-                    placeholder="Weeks"
+                    placeholder="Days"
                   />
                   <Button
                     type="button"
@@ -821,7 +821,7 @@ const ProjectForm = () => {
               onClick={() => {
                 setTimelineCategories([
                   ...timelineCategories,
-                  { id: crypto.randomUUID(), name: "New Phase", weeks: 1 }
+                  { id: crypto.randomUUID(), name: "New Phase", days: 1 }
                 ]);
               }}
             >
@@ -832,7 +832,7 @@ const ProjectForm = () => {
             <div className="pt-4 border-t">
               <div className="flex justify-between items-center text-xl font-bold">
                 <span>Total Duration:</span>
-                <span>{timelineCategories.reduce((sum, cat) => sum + cat.weeks, 0)} weeks</span>
+                <span>{timelineCategories.reduce((sum, cat) => sum + cat.days, 0)} business days</span>
               </div>
             </div>
           </CardContent>
