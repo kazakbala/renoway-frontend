@@ -631,7 +631,7 @@ const ProjectForm = () => {
                                         />
                                       </TableCell>
                                       <TableCell>{work.name}</TableCell>
-                                      <TableCell>AED {work.price_per_unit.toFixed(2)}</TableCell>
+                                      <TableCell>AED {(work.price_per_unit * priceMultiplier).toFixed(2)}</TableCell>
                                       <TableCell>{work.unit_type}</TableCell>
                                       <TableCell>
                                         <div className="flex items-center gap-2">
