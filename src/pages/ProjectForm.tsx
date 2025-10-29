@@ -84,6 +84,7 @@ const ProjectForm = () => {
   const [activeTab, setActiveTab] = useState<string>("0");
   const [priceMultiplier, setPriceMultiplier] = useState<number>(1);
   const [discount, setDiscount] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -689,15 +690,28 @@ const ProjectForm = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="discount">Discount (AED)</Label>
-                <Input
-                  id="discount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={discount}
-                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                />
+                <Label htmlFor="discount">Discount</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="discount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={discountType === "percentage" ? 100 : undefined}
+                    value={discount}
+                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                    className="flex-1"
+                  />
+                  <Select value={discountType} onValueChange={(value: "amount" | "percentage") => setDiscountType(value)}>
+                    <SelectTrigger className="w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="amount">AED</SelectItem>
+                      <SelectItem value="percentage">%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
             
@@ -711,16 +725,34 @@ const ProjectForm = () => {
                 <span>AED {(calculateProjectTotal() * priceMultiplier).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-lg">
-                <span>After Discount:</span>
-                <span>AED {(calculateProjectTotal() * priceMultiplier - discount).toFixed(2)}</span>
+                <span>After Discount{discountType === "percentage" ? ` (${discount}%)` : ""}:</span>
+                <span>AED {(() => {
+                  const afterMultiplier = calculateProjectTotal() * priceMultiplier;
+                  const discountAmount = discountType === "percentage" 
+                    ? afterMultiplier * (discount / 100)
+                    : discount;
+                  return (afterMultiplier - discountAmount).toFixed(2);
+                })()}</span>
               </div>
               <div className="flex justify-between items-center text-lg">
                 <span>VAT (5%):</span>
-                <span>AED {((calculateProjectTotal() * priceMultiplier - discount) * 0.05).toFixed(2)}</span>
+                <span>AED {(() => {
+                  const afterMultiplier = calculateProjectTotal() * priceMultiplier;
+                  const discountAmount = discountType === "percentage" 
+                    ? afterMultiplier * (discount / 100)
+                    : discount;
+                  return ((afterMultiplier - discountAmount) * 0.05).toFixed(2);
+                })()}</span>
               </div>
               <div className="flex justify-between items-center text-2xl font-bold pt-2 border-t">
                 <span>Grand Total:</span>
-                <span>AED {((calculateProjectTotal() * priceMultiplier - discount) * 1.05).toFixed(2)}</span>
+                <span>AED {(() => {
+                  const afterMultiplier = calculateProjectTotal() * priceMultiplier;
+                  const discountAmount = discountType === "percentage" 
+                    ? afterMultiplier * (discount / 100)
+                    : discount;
+                  return ((afterMultiplier - discountAmount) * 1.05).toFixed(2);
+                })()}</span>
               </div>
             </div>
           </CardContent>
