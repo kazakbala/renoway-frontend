@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Calculator, GripVertical } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calculator, GripVertical, FileDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +14,8 @@ import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
 import { SortableTab } from "@/components/SortableTab";
 import { SortableTimelineItem } from "@/components/SortableTimelineItem";
 import { useAuth } from "@/contexts/AuthContext";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   DndContext,
   closestCenter,
@@ -472,6 +474,148 @@ const ProjectForm = () => {
     }
   };
 
+  const generatePDF = async () => {
+    const doc = new jsPDF();
+    
+    // Get client name
+    const client = clients.find(c => c.id === clientId);
+    const clientName = client?.full_name || "N/A";
+    
+    // Set elegant business font
+    doc.setFont("helvetica");
+    
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(40, 40, 40);
+    doc.text("PROJECT QUOTATION", 105, 20, { align: "center" });
+    
+    // Project and Client Info
+    doc.setFontSize(11);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Project: ${projectName}`, 20, 35);
+    doc.text(`Client: ${clientName}`, 20, 42);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 49);
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, 53, 190, 53);
+    
+    let yPosition = 63;
+    
+    // Rooms and Works
+    for (const room of rooms) {
+      const roomType = roomTypes.find(rt => rt.id === room.room_type_id);
+      const roomWorks = getWorksForRoom(room).filter(work => 
+        room.works.find(rw => rw.work_id === work.id && rw.is_selected)
+      );
+      
+      if (roomWorks.length === 0) continue;
+      
+      // Room header
+      doc.setFontSize(13);
+      doc.setTextColor(40, 40, 40);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${room.name} (${roomType?.name || "Unknown"})`, 20, yPosition);
+      yPosition += 8;
+      
+      // Works table
+      const tableData = roomWorks.map(work => {
+        const roomWork = room.works.find(rw => rw.work_id === work.id);
+        const quantity = roomWork?.quantity || 0;
+        const pricePerUnit = work.price_per_unit * priceMultiplier;
+        const total = pricePerUnit * quantity;
+        
+        return [
+          work.name,
+          `${quantity.toFixed(2)} ${work.unit_type}`,
+          `AED ${pricePerUnit.toFixed(2)}`,
+          `AED ${total.toFixed(2)}`
+        ];
+      });
+      
+      autoTable(doc, {
+        startY: yPosition,
+        head: [["Work Item", "Quantity", "Price/Unit", "Total"]],
+        body: tableData,
+        theme: "striped",
+        headStyles: { 
+          fillColor: [70, 70, 70],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 10
+        },
+        styles: { 
+          fontSize: 9,
+          cellPadding: 4,
+          font: "helvetica"
+        },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 35, halign: "center" },
+          2: { cellWidth: 35, halign: "right" },
+          3: { cellWidth: 35, halign: "right" }
+        },
+        margin: { left: 20, right: 20 }
+      });
+      
+      yPosition = (doc as any).lastAutoTable.finalY + 3;
+      
+      // Room subtotal
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      const roomSubtotal = calculateRoomSubtotal(room);
+      doc.text(`Room Subtotal: AED ${roomSubtotal.toFixed(2)}`, 155, yPosition, { align: "right" });
+      yPosition += 10;
+      
+      // Add new page if needed
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+    }
+    
+    // Financial Summary
+    yPosition += 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 10;
+    
+    const subtotal = calculateProjectTotal();
+    const discountAmount = discountType === "percentage" 
+      ? subtotal * (discount / 100)
+      : discount;
+    const afterDiscount = subtotal - discountAmount;
+    const vat = afterDiscount * 0.05;
+    const grandTotal = afterDiscount + vat;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(`Subtotal:`, 130, yPosition);
+    doc.text(`AED ${subtotal.toFixed(2)}`, 190, yPosition, { align: "right" });
+    yPosition += 7;
+    
+    if (discount > 0) {
+      doc.text(`Discount${discountType === "percentage" ? ` (${discount}%)` : ""}:`, 130, yPosition);
+      doc.text(`-AED ${discountAmount.toFixed(2)}`, 190, yPosition, { align: "right" });
+      yPosition += 7;
+      
+      doc.text(`After Discount:`, 130, yPosition);
+      doc.text(`AED ${afterDiscount.toFixed(2)}`, 190, yPosition, { align: "right" });
+      yPosition += 7;
+    }
+    
+    doc.text(`VAT (5%):`, 130, yPosition);
+    doc.text(`AED ${vat.toFixed(2)}`, 190, yPosition, { align: "right" });
+    yPosition += 10;
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text(`GRAND TOTAL:`, 130, yPosition);
+    doc.text(`AED ${grandTotal.toFixed(2)}`, 190, yPosition, { align: "right" });
+    
+    // Save PDF
+    doc.save(`${projectName.replace(/[^a-z0-9]/gi, '_')}_quotation.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -843,6 +987,12 @@ const ProjectForm = () => {
           <Button type="submit" disabled={loading}>
             {loading ? "Saving..." : id ? "Update Project" : "Create Project"}
           </Button>
+          {id && (
+            <Button type="button" variant="secondary" onClick={generatePDF}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Export as PDF
+            </Button>
+          )}
           <Button type="button" variant="outline" onClick={() => navigate("/dashboard/projects")}>
             Cancel
           </Button>
