@@ -477,31 +477,87 @@ const ProjectForm = () => {
   const generatePDF = async () => {
     const doc = new jsPDF();
     
-    // Get client name
+    // Get client details
     const client = clients.find(c => c.id === clientId);
     const clientName = client?.full_name || "N/A";
+    
+    // Generate invoice number based on project ID
+    const invoiceNumber = `#${id?.substring(0, 6).toUpperCase() || '000000'}`;
+    
+    // Calculate dates
+    const issuedDate = new Date();
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    };
     
     // Set elegant business font
     doc.setFont("helvetica");
     
-    // Header
-    doc.setFontSize(24);
-    doc.setTextColor(40, 40, 40);
-    doc.text("PROJECT QUOTATION", 105, 20, { align: "center" });
+    // === PAGE 1: HEADER & INFO ===
     
-    // Project and Client Info
+    // Header - Invoice & Company Name
+    doc.setFontSize(32);
+    doc.setTextColor(20, 20, 20);
+    doc.setFont("helvetica", "bold");
+    doc.text("Invoice", 20, 25);
+    
+    // Company/Brand name on right
+    doc.setFontSize(28);
+    doc.setTextColor(40, 80, 200); // Blue accent
+    doc.text("Your Company", 190, 25, { align: "right" });
+    
+    // Invoice number
     doc.setFontSize(11);
     doc.setTextColor(80, 80, 80);
-    doc.text(`Project: ${projectName}`, 20, 35);
-    doc.text(`Client: ${clientName}`, 20, 42);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 49);
+    doc.setFont("helvetica", "normal");
+    doc.text(invoiceNumber, 20, 32);
     
-    doc.setDrawColor(200, 200, 200);
-    doc.line(20, 53, 190, 53);
+    // Horizontal line
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.line(20, 38, 190, 38);
     
-    let yPosition = 63;
+    // Project name
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.setFont("helvetica", "bold");
+    doc.text("Project", 20, 48);
+    doc.setFont("helvetica", "normal");
+    doc.text(projectName, 20, 54);
     
-    // Rooms and Works
+    // Dates section
+    doc.setFont("helvetica", "bold");
+    doc.text("Issued Date", 115, 48);
+    doc.text("Due Date", 160, 48);
+    doc.setFont("helvetica", "normal");
+    doc.text(formatDate(issuedDate), 115, 54);
+    doc.text(formatDate(dueDate), 160, 54);
+    
+    // From section
+    doc.setFont("helvetica", "bold");
+    doc.text("From", 20, 68);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(user?.email || "Your Business", 20, 74);
+    
+    // To section (right aligned)
+    doc.setFont("helvetica", "bold");
+    doc.text("To", 190, 68, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.text(clientName, 190, 74, { align: "right" });
+    
+    // Horizontal line before items
+    doc.setDrawColor(220, 220, 220);
+    doc.line(20, 85, 190, 85);
+    
+    let yPosition = 95;
+    
+    // === ITEMS SECTION ===
+    
+    // Rooms and Works with improved formatting
     for (const room of rooms) {
       const roomType = roomTypes.find(rt => rt.id === room.room_type_id);
       const roomWorks = getWorksForRoom(room).filter(work => 
@@ -510,14 +566,22 @@ const ProjectForm = () => {
       
       if (roomWorks.length === 0) continue;
       
-      // Room header
-      doc.setFontSize(13);
-      doc.setTextColor(40, 40, 40);
-      doc.setFont("helvetica", "bold");
-      doc.text(`${room.name} (${roomType?.name || "Unknown"})`, 20, yPosition);
-      yPosition += 8;
+      // Check if we need a new page
+      if (yPosition > 240) {
+        doc.addPage();
+        yPosition = 25;
+      }
       
-      // Works table
+      // Room header with background
+      doc.setFillColor(245, 247, 250);
+      doc.rect(20, yPosition - 5, 170, 8, 'F');
+      doc.setFontSize(11);
+      doc.setTextColor(30, 30, 30);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${room.name} (${roomType?.name || "Unknown"})`, 22, yPosition);
+      yPosition += 10;
+      
+      // Works table with clean design
       const tableData = roomWorks.map(work => {
         const roomWork = room.works.find(rw => rw.work_id === work.id);
         const quantity = roomWork?.quantity || 0;
@@ -526,7 +590,8 @@ const ProjectForm = () => {
         
         return [
           work.name,
-          `${quantity.toFixed(2)} ${work.unit_type}`,
+          quantity.toFixed(2),
+          work.unit_type,
           `AED ${pricePerUnit.toFixed(2)}`,
           `AED ${total.toFixed(2)}`
         ];
@@ -534,50 +599,63 @@ const ProjectForm = () => {
       
       autoTable(doc, {
         startY: yPosition,
-        head: [["Work Item", "Quantity", "Price/Unit", "Total"]],
+        head: [["Description", "Units", "Type", "Price", "Amount"]],
         body: tableData,
-        theme: "striped",
+        theme: "plain",
         headStyles: { 
-          fillColor: [70, 70, 70],
-          textColor: [255, 255, 255],
+          fillColor: [250, 250, 250],
+          textColor: [60, 60, 60],
           fontStyle: "bold",
-          fontSize: 10
+          fontSize: 9,
+          lineWidth: 0,
+          lineColor: [220, 220, 220]
         },
         styles: { 
           fontSize: 9,
-          cellPadding: 4,
-          font: "helvetica"
+          cellPadding: 3,
+          font: "helvetica",
+          textColor: [60, 60, 60]
         },
         columnStyles: {
           0: { cellWidth: 80 },
-          1: { cellWidth: 35, halign: "center" },
-          2: { cellWidth: 35, halign: "right" },
-          3: { cellWidth: 35, halign: "right" }
+          1: { cellWidth: 20, halign: "right" },
+          2: { cellWidth: 20, halign: "center" },
+          3: { cellWidth: 25, halign: "right" },
+          4: { cellWidth: 25, halign: "right" }
         },
-        margin: { left: 20, right: 20 }
+        margin: { left: 20, right: 20 },
+        didDrawCell: (data) => {
+          // Add subtle borders
+          if (data.section === 'body') {
+            doc.setDrawColor(240, 240, 240);
+            doc.setLineWidth(0.1);
+          }
+        }
       });
       
       yPosition = (doc as any).lastAutoTable.finalY + 3;
       
-      // Room subtotal
+      // Room subtotal with light background
+      doc.setFillColor(250, 252, 255);
+      doc.rect(120, yPosition - 2, 70, 7, 'F');
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
+      doc.setFontSize(9);
+      doc.setTextColor(50, 50, 50);
       const roomSubtotal = calculateRoomSubtotal(room);
-      doc.text(`Room Subtotal: AED ${roomSubtotal.toFixed(2)}`, 155, yPosition, { align: "right" });
-      yPosition += 10;
-      
-      // Add new page if needed
-      if (yPosition > 250) {
-        doc.addPage();
-        yPosition = 20;
-      }
+      doc.text("Room Subtotal:", 125, yPosition + 2);
+      doc.text(`AED ${roomSubtotal.toFixed(2)}`, 185, yPosition + 2, { align: "right" });
+      yPosition += 12;
     }
     
-    // Financial Summary
+    // === FINANCIAL SUMMARY ===
+    
+    // Add new page if needed for summary
+    if (yPosition > 230) {
+      doc.addPage();
+      yPosition = 25;
+    }
+    
     yPosition += 5;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(20, yPosition, 190, yPosition);
-    yPosition += 10;
     
     const subtotal = calculateProjectTotal();
     const discountAmount = discountType === "percentage" 
@@ -587,33 +665,98 @@ const ProjectForm = () => {
     const vat = afterDiscount * 0.05;
     const grandTotal = afterDiscount + vat;
     
+    // Summary box
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.line(115, yPosition, 190, yPosition);
+    yPosition += 8;
+    
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.text(`Subtotal:`, 130, yPosition);
-    doc.text(`AED ${subtotal.toFixed(2)}`, 190, yPosition, { align: "right" });
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    
+    doc.text("Subtotal:", 120, yPosition);
+    doc.text(`AED ${subtotal.toFixed(2)}`, 185, yPosition, { align: "right" });
     yPosition += 7;
     
     if (discount > 0) {
-      doc.text(`Discount${discountType === "percentage" ? ` (${discount}%)` : ""}:`, 130, yPosition);
-      doc.text(`-AED ${discountAmount.toFixed(2)}`, 190, yPosition, { align: "right" });
-      yPosition += 7;
-      
-      doc.text(`After Discount:`, 130, yPosition);
-      doc.text(`AED ${afterDiscount.toFixed(2)}`, 190, yPosition, { align: "right" });
+      doc.text(`Discount${discountType === "percentage" ? ` (${discount}%)` : ""}:`, 120, yPosition);
+      doc.text(`-AED ${discountAmount.toFixed(2)}`, 185, yPosition, { align: "right" });
       yPosition += 7;
     }
     
-    doc.text(`VAT (5%):`, 130, yPosition);
-    doc.text(`AED ${vat.toFixed(2)}`, 190, yPosition, { align: "right" });
+    doc.text("VAT (5%):", 120, yPosition);
+    doc.text(`AED ${vat.toFixed(2)}`, 185, yPosition, { align: "right" });
     yPosition += 10;
     
+    // Grand total with background
+    doc.setFillColor(245, 247, 250);
+    doc.rect(115, yPosition - 5, 75, 10, 'F');
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.text(`GRAND TOTAL:`, 130, yPosition);
-    doc.text(`AED ${grandTotal.toFixed(2)}`, 190, yPosition, { align: "right" });
+    doc.setFontSize(12);
+    doc.setTextColor(20, 20, 20);
+    doc.text("Total Amount:", 120, yPosition + 2);
+    doc.text(`AED ${grandTotal.toFixed(2)}`, 185, yPosition + 2, { align: "right" });
+    
+    yPosition += 18;
+    
+    // === NOTES SECTION ===
+    if (yPosition > 250) {
+      doc.addPage();
+      yPosition = 25;
+    }
+    
+    doc.setFillColor(252, 252, 253);
+    doc.roundedRect(20, yPosition, 170, 22, 2, 2, 'F');
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(70, 70, 70);
+    doc.text("Note: Payment is due within 30 days. Late payments may incur additional fees.", 23, yPosition + 6);
+    doc.text("Thank you for your business!", 23, yPosition + 12);
+    
+    yPosition += 30;
+    
+    // === PAYMENT METHOD & SIGNATURE ===
+    if (yPosition > 230) {
+      doc.addPage();
+      yPosition = 25;
+    }
+    
+    // Payment Method
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(40, 40, 40);
+    doc.text("Payment Method", 20, yPosition);
+    yPosition += 7;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(70, 70, 70);
+    doc.text("Bank Transfer", 20, yPosition);
+    yPosition += 5;
+    doc.text("Please contact us for payment details", 20, yPosition);
+    
+    // Signature area (right side)
+    const signatureY = yPosition - 10;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Authorized Signature", 190, signatureY, { align: "right" });
+    
+    // Signature line
+    doc.setDrawColor(180, 180, 180);
+    doc.line(130, signatureY + 20, 190, signatureY + 20);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(user?.email?.split('@')[0] || "Authorized Person", 190, signatureY + 25, { align: "right" });
     
     // Save PDF
-    doc.save(`${projectName.replace(/[^a-z0-9]/gi, '_')}_quotation.pdf`);
+    doc.save(`Invoice_${invoiceNumber}_${projectName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    
+    toast({
+      title: "PDF Generated",
+      description: "Your invoice has been downloaded successfully.",
+    });
   };
 
   return (
