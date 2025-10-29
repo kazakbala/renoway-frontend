@@ -481,8 +481,8 @@ const ProjectForm = () => {
     const client = clients.find(c => c.id === clientId);
     const clientName = client?.full_name || "N/A";
     
-    // Generate invoice number based on project ID
-    const invoiceNumber = `#${id?.substring(0, 6).toUpperCase() || '000000'}`;
+    // Generate quotation number based on project ID
+    const quotationNumber = `#${id?.substring(0, 6).toUpperCase() || '000000'}`;
     
     // Calculate dates
     const issuedDate = new Date();
@@ -498,22 +498,22 @@ const ProjectForm = () => {
     
     // === PAGE 1: HEADER & INFO ===
     
-    // Header - Invoice & Company Name
+    // Header - Quotation & Company Name
     doc.setFontSize(32);
     doc.setTextColor(20, 20, 20);
     doc.setFont("helvetica", "bold");
-    doc.text("Invoice", 20, 25);
+    doc.text("Quotation", 20, 25);
     
     // Company/Brand name on right
     doc.setFontSize(28);
     doc.setTextColor(40, 80, 200); // Blue accent
     doc.text("Your Company", 190, 25, { align: "right" });
     
-    // Invoice number
+    // Quotation number
     doc.setFontSize(11);
     doc.setTextColor(80, 80, 80);
     doc.setFont("helvetica", "normal");
-    doc.text(invoiceNumber, 20, 32);
+    doc.text(quotationNumber, 20, 32);
     
     // Horizontal line
     doc.setDrawColor(220, 220, 220);
@@ -536,24 +536,30 @@ const ProjectForm = () => {
     doc.text(formatDate(issuedDate), 115, 54);
     doc.text(formatDate(dueDate), 160, 54);
     
-    // From section
+    // From section - Company Details
     doc.setFont("helvetica", "bold");
     doc.text("From", 20, 68);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(user?.email || "Your Business", 20, 74);
+    doc.setFontSize(9);
+    doc.text("Elite Interiors LLC", 20, 74);
+    doc.text("Business Bay, Dubai, UAE", 20, 79);
+    doc.text("License No: 123456", 20, 84);
+    doc.text("Registration No: 789012", 20, 89);
+    doc.text("Phone: +971 4 123 4567", 20, 94);
+    doc.text("Email: info@eliteinteriors.ae", 20, 99);
     
     // To section (right aligned)
     doc.setFont("helvetica", "bold");
     doc.text("To", 190, 68, { align: "right" });
     doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
     doc.text(clientName, 190, 74, { align: "right" });
     
     // Horizontal line before items
     doc.setDrawColor(220, 220, 220);
-    doc.line(20, 85, 190, 85);
+    doc.line(20, 110, 190, 110);
     
-    let yPosition = 95;
+    let yPosition = 120;
     
     // === ITEMS SECTION ===
     
@@ -707,34 +713,40 @@ const ProjectForm = () => {
     }
     
     doc.setFillColor(252, 252, 253);
-    doc.roundedRect(20, yPosition, 170, 22, 2, 2, 'F');
-    doc.setFontSize(9);
+    doc.roundedRect(20, yPosition, 170, 35, 2, 2, 'F');
+    doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(70, 70, 70);
-    doc.text("Note: Payment is due within 30 days. Late payments may incur additional fees.", 23, yPosition + 6);
-    doc.text("Thank you for your business!", 23, yPosition + 12);
+    doc.text("Note: All furniture, decor and design solutions will be made in accordance with the client's budget.", 23, yPosition + 5);
+    doc.text("The prices (including custom made furniture) may be adjusted after finishing the design project or", 23, yPosition + 10);
+    doc.text("during work execution or after final decision on the finishing materials and accessories.", 23, yPosition + 15);
+    doc.text("The validity period for this estimate is 30 days.", 23, yPosition + 20);
     
-    yPosition += 30;
+    yPosition += 43;
     
     // === PAYMENT METHOD & SIGNATURE ===
-    if (yPosition > 230) {
+    if (yPosition > 200) {
       doc.addPage();
       yPosition = 25;
     }
     
-    // Payment Method
+    // Bank Details
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(40, 40, 40);
-    doc.text("Payment Method", 20, yPosition);
+    doc.text("Bank Details", 20, yPosition);
     yPosition += 7;
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(70, 70, 70);
-    doc.text("Bank Transfer", 20, yPosition);
+    doc.text("Account Holder: Elite Interiors LLC", 20, yPosition);
     yPosition += 5;
-    doc.text("Please contact us for payment details", 20, yPosition);
+    doc.text("Bank Name: Emirates NBD", 20, yPosition);
+    yPosition += 5;
+    doc.text("Account Number: 1234567890123", 20, yPosition);
+    yPosition += 5;
+    doc.text("IBAN: AE07 0331 2345 6789 0123 456", 20, yPosition);
     
     // Signature area (right side)
     const signatureY = yPosition - 10;
@@ -751,11 +763,11 @@ const ProjectForm = () => {
     doc.text(user?.email?.split('@')[0] || "Authorized Person", 190, signatureY + 25, { align: "right" });
     
     // Save PDF
-    doc.save(`Invoice_${invoiceNumber}_${projectName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    doc.save(`Quotation_${quotationNumber}_${projectName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
     
     toast({
       title: "PDF Generated",
-      description: "Your invoice has been downloaded successfully.",
+      description: "Your quotation has been downloaded successfully.",
     });
   };
 
