@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Tag, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Search, Upload, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Pagination,
@@ -71,12 +71,16 @@ const Works = () => {
   const [open, setOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [roomTypeOpen, setRoomTypeOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingWork, setEditingWork] = useState<Work | null>(null);
   const [newCategory, setNewCategory] = useState("");
   const [newRoomType, setNewRoomType] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [parsedData, setParsedData] = useState<any[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -330,6 +334,111 @@ const Works = () => {
     setCurrentPage(1);
   }, [searchQuery]);
 
+  const downloadExampleCSV = () => {
+    const csvContent = `Category Name,Work Name,Description,Unit,Price
+Flooring,Ceramic Tile Installation,Standard ceramic tile with adhesive,m2,45.50
+Painting,Interior Wall Painting,Premium paint with 2 coats,m2,25.00
+Plumbing,Water Pipe Installation,PVC pipe installation with fittings,m,12.75
+Electrical,Light Fixture Installation,Standard ceiling light fixture,pc,85.00
+Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'works_example.csv';
+    link.click();
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCsvFile(file);
+      parseCSV(file);
+    }
+  };
+
+  const parseCSV = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim());
+      
+      const data = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim());
+        return {
+          categoryName: values[0],
+          workName: values[1],
+          description: values[2],
+          unit: values[3],
+          price: values[4]
+        };
+      });
+      
+      setParsedData(data);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportConfirm = async () => {
+    setIsProcessing(true);
+    
+    try {
+      for (const item of parsedData) {
+        // Check if category exists
+        let categoryId = null;
+        if (item.categoryName) {
+          const { data: existingCategory } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('name', item.categoryName)
+            .single();
+          
+          if (existingCategory) {
+            categoryId = existingCategory.id;
+          } else {
+            // Create new category
+            const { data: newCat, error: catError } = await supabase
+              .from('categories')
+              .insert([{ name: item.categoryName }])
+              .select('id')
+              .single();
+            
+            if (catError) throw catError;
+            categoryId = newCat.id;
+          }
+        }
+        
+        // Insert work
+        const { error: workError } = await supabase
+          .from('works')
+          .insert([{
+            name: item.workName,
+            description: item.description || null,
+            unit_type: item.unit,
+            price_per_unit: parseFloat(item.price),
+            category_id: categoryId
+          }]);
+        
+        if (workError) throw workError;
+      }
+      
+      toast({ title: `Successfully imported ${parsedData.length} works` });
+      setImportOpen(false);
+      setCsvFile(null);
+      setParsedData([]);
+      loadData();
+    } catch (error: any) {
+      toast({
+        title: "Error importing works",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -402,6 +511,79 @@ const Works = () => {
                   ))}
                 </div>
               </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={importOpen} onOpenChange={setImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="w-4 h-4 mr-2" />
+                Import Works
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import Works from CSV</DialogTitle>
+                <DialogDescription>
+                  Upload a CSV file with columns: Category Name, Work Name, Description, Unit, Price
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={downloadExampleCSV}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Example CSV
+                </Button>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="csv-file">Upload CSV File</Label>
+                  <Input
+                    id="csv-file"
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+                
+                {parsedData.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Preview ({parsedData.length} works found)</p>
+                    <div className="border rounded-lg p-3 max-h-48 overflow-auto">
+                      {parsedData.slice(0, 5).map((item, idx) => (
+                        <div key={idx} className="text-sm py-1">
+                          <span className="font-medium">{item.categoryName}</span> - {item.workName} ({item.unit}: {item.price} AED)
+                        </div>
+                      ))}
+                      {parsedData.length > 5 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          ...and {parsedData.length - 5} more
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setImportOpen(false);
+                    setCsvFile(null);
+                    setParsedData([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleImportConfirm}
+                  disabled={parsedData.length === 0 || isProcessing}
+                >
+                  {isProcessing ? "Importing..." : "Import"}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
 
