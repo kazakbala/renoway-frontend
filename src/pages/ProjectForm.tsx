@@ -89,6 +89,7 @@ const ProjectForm = () => {
   const [priceMultiplier, setPriceMultiplier] = useState<number>(1);
   const [discount, setDiscount] = useState<number>(0);
   const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
+  const [advancePaymentPercentage, setAdvancePaymentPercentage] = useState<number>(30);
   const [timelineCategories, setTimelineCategories] = useState<Array<{ id: string; name: string; days: number }>>([]);
 
   const sensors = useSensors(
@@ -122,6 +123,7 @@ const ProjectForm = () => {
         setPriceMultiplier(project.price_multiplier || 1);
         setDiscount(project.discount || 0);
         setDiscountType((project.discount_type as "amount" | "percentage") || "amount");
+        setAdvancePaymentPercentage(project.advance_payment_percentage || 30);
         setTimelineCategories((project.timeline_categories as Array<{ id: string; name: string; days: number }>) || []);
 
         const { data: projectRooms } = await supabase
@@ -316,6 +318,7 @@ const ProjectForm = () => {
             price_multiplier: priceMultiplier,
             discount: discount,
             discount_type: discountType,
+            advance_payment_percentage: advancePaymentPercentage,
             timeline_categories: timelineCategories
           })
           .eq("id", id);
@@ -335,6 +338,7 @@ const ProjectForm = () => {
             price_multiplier: priceMultiplier,
             discount: discount,
             discount_type: discountType,
+            advance_payment_percentage: advancePaymentPercentage,
             timeline_categories: timelineCategories
           })
           .select()
@@ -670,39 +674,112 @@ const ProjectForm = () => {
     const afterDiscount = subtotal - discountAmount;
     const vat = afterDiscount * 0.05;
     const grandTotal = afterDiscount + vat;
+    const advanceAmount = grandTotal * (advancePaymentPercentage / 100);
+    const remainingPercentage = 100 - advancePaymentPercentage;
     
-    // Summary box
+    // === PAYMENT TERMS (Left side) ===
+    const leftColumnX = 20;
+    const leftColumnWidth = 90;
+    const paymentTermsY = yPosition;
+    
+    // Payment Terms Box
+    doc.setFillColor(252, 252, 253);
+    doc.roundedRect(leftColumnX, paymentTermsY, leftColumnWidth, 65, 2, 2, 'F');
+    
+    // Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Payment Terms", leftColumnX + 5, paymentTermsY + 8);
+    
+    let paymentY = paymentTermsY + 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+    
+    // Bullet 1: Advance Payment
+    doc.setFont("helvetica", "bold");
+    doc.text("•", leftColumnX + 5, paymentY);
+    doc.text("Advance Payment:", leftColumnX + 8, paymentY);
+    doc.setFont("helvetica", "normal");
+    paymentY += 4;
+    const advanceText = doc.splitTextToSize(
+      `${advancePaymentPercentage}% of the total quotation amount is due within 3 business days from the date of signing the quotation or agreement.`,
+      leftColumnWidth - 12
+    );
+    doc.text(advanceText, leftColumnX + 8, paymentY);
+    paymentY += advanceText.length * 4 + 3;
+    
+    // Bullet 2: Progress Payments
+    doc.setFont("helvetica", "bold");
+    doc.text("•", leftColumnX + 5, paymentY);
+    doc.text("Progress Payments:", leftColumnX + 8, paymentY);
+    doc.setFont("helvetica", "normal");
+    paymentY += 4;
+    const progressText = doc.splitTextToSize(
+      `The remaining ${remainingPercentage}% shall be paid after completion and approval of the invoiced works as per the issued Certificate of Completion (CoC).`,
+      leftColumnWidth - 12
+    );
+    doc.text(progressText, leftColumnX + 8, paymentY);
+    paymentY += progressText.length * 4 + 3;
+    
+    // Bullet 3: Currency & Method
+    doc.setFont("helvetica", "bold");
+    doc.text("•", leftColumnX + 5, paymentY);
+    doc.text("Currency & Method:", leftColumnX + 8, paymentY);
+    doc.setFont("helvetica", "normal");
+    paymentY += 4;
+    const currencyText = doc.splitTextToSize(
+      "All payments must be made in United Arab Emirates Dirhams (AED) by bank transfer or cash deposit to the Contractor's designated account.",
+      leftColumnWidth - 12
+    );
+    doc.text(currencyText, leftColumnX + 8, paymentY);
+    
+    // Summary box (Right side)
+    const rightColumnX = 115;
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.5);
-    doc.line(115, yPosition, 190, yPosition);
+    doc.line(rightColumnX, yPosition, 190, yPosition);
     yPosition += 8;
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
     
-    doc.text("Subtotal:", 120, yPosition);
+    doc.text("Subtotal:", rightColumnX + 5, yPosition);
     doc.text(`AED ${subtotal.toFixed(2)}`, 185, yPosition, { align: "right" });
     yPosition += 7;
     
     if (discount > 0) {
-      doc.text(`Discount${discountType === "percentage" ? ` (${discount}%)` : ""}:`, 120, yPosition);
+      doc.text(`Discount${discountType === "percentage" ? ` (${discount}%)` : ""}:`, rightColumnX + 5, yPosition);
       doc.text(`-AED ${discountAmount.toFixed(2)}`, 185, yPosition, { align: "right" });
       yPosition += 7;
     }
     
-    doc.text("VAT (5%):", 120, yPosition);
+    doc.text("VAT (5%):", rightColumnX + 5, yPosition);
     doc.text(`AED ${vat.toFixed(2)}`, 185, yPosition, { align: "right" });
     yPosition += 10;
     
     // Grand total with background
     doc.setFillColor(245, 247, 250);
-    doc.rect(115, yPosition - 5, 75, 10, 'F');
+    doc.rect(rightColumnX, yPosition - 5, 75, 10, 'F');
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(20, 20, 20);
-    doc.text("Total Amount:", 120, yPosition + 2);
+    doc.text("Total Amount:", rightColumnX + 5, yPosition + 2);
     doc.text(`AED ${grandTotal.toFixed(2)}`, 185, yPosition + 2, { align: "right" });
+    yPosition += 10;
+    
+    // Advance payment amount
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Advance (${advancePaymentPercentage}%):`, rightColumnX + 5, yPosition);
+    doc.text(`AED ${advanceAmount.toFixed(2)}`, 185, yPosition, { align: "right" });
+    yPosition += 5;
+    
+    doc.text(`Balance (${remainingPercentage}%):`, rightColumnX + 5, yPosition);
+    doc.text(`AED ${(grandTotal - advanceAmount).toFixed(2)}`, 185, yPosition, { align: "right" });
     
     yPosition += 18;
     
@@ -1118,7 +1195,7 @@ const ProjectForm = () => {
 
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="priceMultiplier">Price Multiplier</Label>
                 <Input
@@ -1153,6 +1230,18 @@ const ProjectForm = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="advancePayment">Advance Payment (%)</Label>
+                <Input
+                  id="advancePayment"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="100"
+                  value={advancePaymentPercentage}
+                  onChange={(e) => setAdvancePaymentPercentage(parseFloat(e.target.value) || 0)}
+                />
               </div>
             </div>
             
@@ -1189,6 +1278,28 @@ const ProjectForm = () => {
                     ? subtotal * (discount / 100)
                     : discount;
                   return ((subtotal - discountAmount) * 1.05).toFixed(2);
+                })()}</span>
+              </div>
+              <div className="flex justify-between items-center text-lg text-muted-foreground pt-2">
+                <span>Advance Payment ({advancePaymentPercentage}%):</span>
+                <span>AED {(() => {
+                  const subtotal = calculateProjectTotal();
+                  const discountAmount = discountType === "percentage" 
+                    ? subtotal * (discount / 100)
+                    : discount;
+                  const grandTotal = (subtotal - discountAmount) * 1.05;
+                  return (grandTotal * (advancePaymentPercentage / 100)).toFixed(2);
+                })()}</span>
+              </div>
+              <div className="flex justify-between items-center text-lg text-muted-foreground">
+                <span>Remaining ({100 - advancePaymentPercentage}%):</span>
+                <span>AED {(() => {
+                  const subtotal = calculateProjectTotal();
+                  const discountAmount = discountType === "percentage" 
+                    ? subtotal * (discount / 100)
+                    : discount;
+                  const grandTotal = (subtotal - discountAmount) * 1.05;
+                  return (grandTotal * ((100 - advancePaymentPercentage) / 100)).toFixed(2);
                 })()}</span>
               </div>
             </div>

@@ -175,6 +175,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          advance_payment_percentage: number | null
           client_id: string
           created_at: string
           discount: number | null
@@ -187,6 +188,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          advance_payment_percentage?: number | null
           client_id: string
           created_at?: string
           discount?: number | null
@@ -199,6 +201,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          advance_payment_percentage?: number | null
           client_id?: string
           created_at?: string
           discount?: number | null
