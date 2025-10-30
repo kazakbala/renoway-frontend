@@ -10,7 +10,7 @@ const Dashboard = () => {
     clients: 0,
     works: 0,
   });
-  const [projectsChartData, setProjectsChartData] = useState<Array<{ date: string; projects: number }>>([]);
+  const [projectsChartData, setProjectsChartData] = useState<Array<{ date: string; projects: number; total: number }>>([]);
 
   useEffect(() => {
     loadStats();
@@ -34,30 +34,73 @@ const Dashboard = () => {
     
     const { data: projects } = await supabase
       .from("projects")
-      .select("created_at")
+      .select(`
+        created_at,
+        price_multiplier,
+        discount,
+        discount_type,
+        project_rooms (
+          project_room_works (
+            quantity,
+            is_selected,
+            work_id,
+            works (
+              price_per_unit
+            )
+          )
+        )
+      `)
       .gte("created_at", thirtyDaysAgo.toISOString());
 
-    // Create a map of dates with counts
-    const dateCountMap = new Map<string, number>();
+    // Create a map of dates with counts and totals
+    const dateDataMap = new Map<string, { count: number; total: number }>();
     
     // Initialize all 30 days with 0
     for (let i = 29; i >= 0; i--) {
       const date = format(subDays(new Date(), i), "MMM dd");
-      dateCountMap.set(date, 0);
+      dateDataMap.set(date, { count: 0, total: 0 });
     }
 
-    // Count projects per day
-    projects?.forEach((project) => {
+    // Calculate project totals and group by day
+    projects?.forEach((project: any) => {
       const dateStr = format(new Date(project.created_at), "MMM dd");
-      if (dateCountMap.has(dateStr)) {
-        dateCountMap.set(dateStr, (dateCountMap.get(dateStr) || 0) + 1);
+      
+      if (dateDataMap.has(dateStr)) {
+        // Calculate project total
+        const priceMultiplier = project.price_multiplier || 1;
+        let subtotal = 0;
+
+        project.project_rooms?.forEach((room: any) => {
+          room.project_room_works?.forEach((work: any) => {
+            if (work.is_selected && work.works) {
+              subtotal += work.works.price_per_unit * priceMultiplier * work.quantity;
+            }
+          });
+        });
+
+        // Apply discount
+        const discount = project.discount || 0;
+        const discountAmount = project.discount_type === "percentage" 
+          ? subtotal * (discount / 100)
+          : discount;
+        const afterDiscount = subtotal - discountAmount;
+
+        // Add VAT
+        const grandTotal = afterDiscount * 1.05;
+
+        const currentData = dateDataMap.get(dateStr)!;
+        dateDataMap.set(dateStr, {
+          count: currentData.count + 1,
+          total: currentData.total + grandTotal,
+        });
       }
     });
 
     // Convert to array for chart
-    const chartData = Array.from(dateCountMap.entries()).map(([date, projects]) => ({
+    const chartData = Array.from(dateDataMap.entries()).map(([date, data]) => ({
       date,
-      projects,
+      projects: data.count,
+      total: data.total,
     }));
 
     setProjectsChartData(chartData);
@@ -137,6 +180,21 @@ const Dashboard = () => {
                   borderRadius: "6px",
                 }}
                 labelStyle={{ color: "hsl(var(--foreground))" }}
+                formatter={(value: any, name: string, props: any) => {
+                  if (name === "projects") {
+                    const total = props.payload.total;
+                    return [
+                      <div key="tooltip" className="space-y-1">
+                        <div>{value} {value === 1 ? 'project' : 'projects'}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Total: AED {total.toFixed(2)}
+                        </div>
+                      </div>,
+                      ""
+                    ];
+                  }
+                  return [value, name];
+                }}
               />
               <Line 
                 type="monotone" 
