@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Wrench, TrendingUp } from "lucide-react";
+import { Users, Wrench, TrendingUp, CalendarIcon } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, subDays, startOfDay, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -11,11 +16,13 @@ const Dashboard = () => {
     works: 0,
   });
   const [projectsChartData, setProjectsChartData] = useState<Array<{ date: string; projects: number; total: number }>>([]);
+  const [dateFilter, setDateFilter] = useState<"last30" | "thisMonth" | "prevMonth" | "custom">("last30");
+  const [customDateRange, setCustomDateRange] = useState<{ from?: Date; to?: Date }>({});
 
   useEffect(() => {
     loadStats();
     loadProjectsChart();
-  }, []);
+  }, [dateFilter, customDateRange]);
 
   const loadStats = async () => {
     const [clientsRes, worksRes] = await Promise.all([
@@ -30,7 +37,37 @@ const Dashboard = () => {
   };
 
   const loadProjectsChart = async () => {
-    const thirtyDaysAgo = startOfDay(subDays(new Date(), 29));
+    let startDate: Date;
+    let endDate: Date = new Date();
+    let dateFormat = "MMM dd";
+
+    // Calculate date range based on filter
+    switch (dateFilter) {
+      case "last30":
+        startDate = startOfDay(subDays(new Date(), 29));
+        break;
+      case "thisMonth":
+        startDate = startOfMonth(new Date());
+        endDate = endOfMonth(new Date());
+        break;
+      case "prevMonth":
+        const prevMonth = subMonths(new Date(), 1);
+        startDate = startOfMonth(prevMonth);
+        endDate = endOfMonth(prevMonth);
+        break;
+      case "custom":
+        if (!customDateRange.from || !customDateRange.to) return;
+        startDate = startOfDay(customDateRange.from);
+        endDate = startOfDay(customDateRange.to);
+        // Use different format for longer ranges
+        const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysDiff > 60) {
+          dateFormat = "MMM yyyy";
+        }
+        break;
+      default:
+        startDate = startOfDay(subDays(new Date(), 29));
+    }
     
     const { data: projects } = await supabase
       .from("projects")
@@ -50,20 +87,25 @@ const Dashboard = () => {
           )
         )
       `)
-      .gte("created_at", thirtyDaysAgo.toISOString());
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString());
 
     // Create a map of dates with counts and totals
     const dateDataMap = new Map<string, { count: number; total: number }>();
     
-    // Initialize all 30 days with 0
-    for (let i = 29; i >= 0; i--) {
-      const date = format(subDays(new Date(), i), "MMM dd");
-      dateDataMap.set(date, { count: 0, total: 0 });
+    // Initialize dates in range with 0
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateKey = format(currentDate, dateFormat);
+      if (!dateDataMap.has(dateKey)) {
+        dateDataMap.set(dateKey, { count: 0, total: 0 });
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
     // Calculate project totals and group by day
     projects?.forEach((project: any) => {
-      const dateStr = format(new Date(project.created_at), "MMM dd");
+      const dateStr = format(new Date(project.created_at), dateFormat);
       
       if (dateDataMap.has(dateStr)) {
         // Calculate project total
@@ -154,10 +196,80 @@ const Dashboard = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Projects Created (Last 30 Days)</CardTitle>
-          <CardDescription>
-            Track your project creation activity over time
-          </CardDescription>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <CardTitle>Projects Created</CardTitle>
+              <CardDescription>
+                Track your project creation activity over time
+              </CardDescription>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Select value={dateFilter} onValueChange={(value: any) => setDateFilter(value)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="last30">Last 30 Days</SelectItem>
+                  <SelectItem value="thisMonth">This Month</SelectItem>
+                  <SelectItem value="prevMonth">Previous Month</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {dateFilter === "custom" && (
+                <div className="flex gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-[140px] justify-start text-left font-normal",
+                          !customDateRange.from && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateRange.from ? format(customDateRange.from, "MMM dd") : "From"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={customDateRange.from}
+                        onSelect={(date) => setCustomDateRange({ ...customDateRange, from: date })}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-[140px] justify-start text-left font-normal",
+                          !customDateRange.to && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateRange.to ? format(customDateRange.to, "MMM dd") : "To"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={customDateRange.to}
+                        onSelect={(date) => setCustomDateRange({ ...customDateRange, to: date })}
+                        disabled={(date) => customDateRange.from ? date < customDateRange.from : false}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
