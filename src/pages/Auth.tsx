@@ -16,6 +16,7 @@ const Auth = () => {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
@@ -81,6 +82,9 @@ const Auth = () => {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: {
+              company_name: companyName || email,
+            },
           },
         });
         if (error) throw error;
@@ -175,6 +179,19 @@ const Auth = () => {
                 disabled={!!inviteEmail}
               />
             </div>
+            {isSignUp && !inviteToken && (
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Company Name</Label>
+                <Input
+                  id="companyName"
+                  type="text"
+                  placeholder="Your Company"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
