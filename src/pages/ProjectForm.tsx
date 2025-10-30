@@ -706,6 +706,120 @@ const ProjectForm = () => {
     
     yPosition += 18;
     
+    // === PROJECT TIMELINE ===
+    if (timelineCategories.length > 0) {
+      // Add new page for timeline if needed
+      if (yPosition > 180) {
+        doc.addPage();
+        yPosition = 25;
+      }
+      
+      // Timeline title
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("Project Timeline", 20, yPosition);
+      yPosition += 10;
+      
+      // Calculate total duration and dates
+      const totalDays = timelineCategories.reduce((sum, cat) => sum + cat.days, 0);
+      let cumulativeDays = 0;
+      
+      // Chart dimensions
+      const chartStartX = 20;
+      const chartWidth = 170;
+      const barHeight = 12;
+      const spacing = 4;
+      const labelWidth = 65;
+      const chartAreaWidth = chartWidth - labelWidth;
+      
+      // Draw each phase
+      timelineCategories.forEach((phase, index) => {
+        // Check if we need a new page
+        if (yPosition + barHeight + spacing > 270) {
+          doc.addPage();
+          yPosition = 25;
+          
+          // Redraw title on new page
+          doc.setFontSize(14);
+          doc.setFont("helvetica", "bold");
+          doc.text("Project Timeline (continued)", 20, yPosition);
+          yPosition += 10;
+        }
+        
+        // Calculate dates for this phase
+        const startDate = new Date(issuedDate);
+        startDate.setDate(startDate.getDate() + cumulativeDays);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + phase.days - 1);
+        
+        // Phase name and dates
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(50, 50, 50);
+        doc.text(phase.name, chartStartX, yPosition + 4);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`${formatDate(startDate)} - ${formatDate(endDate)}`, chartStartX, yPosition + 9);
+        
+        // Timeline bar
+        const barStartX = chartStartX + labelWidth;
+        const barWidth = (phase.days / totalDays) * chartAreaWidth;
+        
+        // Draw bar background
+        doc.setFillColor(240, 242, 245);
+        doc.roundedRect(barStartX, yPosition, chartAreaWidth, barHeight, 1, 1, 'F');
+        
+        // Draw progress bar with gradient-like effect
+        const hue = (index * 60) % 360;
+        const colors = [
+          [59, 130, 246],   // Blue
+          [34, 197, 94],    // Green
+          [249, 115, 22],   // Orange
+          [168, 85, 247],   // Purple
+          [236, 72, 153],   // Pink
+        ];
+        const color = colors[index % colors.length];
+        
+        doc.setFillColor(color[0], color[1], color[2]);
+        doc.roundedRect(barStartX, yPosition, barWidth, barHeight, 1, 1, 'F');
+        
+        // Add days label on the bar
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(255, 255, 255);
+        const daysText = `${phase.days} ${phase.days === 1 ? 'day' : 'days'}`;
+        const textWidth = doc.getTextWidth(daysText);
+        
+        // Only show text if bar is wide enough
+        if (barWidth > textWidth + 4) {
+          doc.text(daysText, barStartX + barWidth / 2, yPosition + 7.5, { align: 'center' });
+        } else {
+          // Show days outside the bar if too narrow
+          doc.setTextColor(80, 80, 80);
+          doc.text(daysText, barStartX + barWidth + 2, yPosition + 7.5);
+        }
+        
+        yPosition += barHeight + spacing;
+        cumulativeDays += phase.days;
+      });
+      
+      // Total duration summary
+      yPosition += 4;
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(chartStartX, yPosition, chartWidth, 10, 2, 2, 'F');
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("Total Project Duration:", chartStartX + 5, yPosition + 6.5);
+      doc.text(`${totalDays} business days`, chartStartX + chartWidth - 5, yPosition + 6.5, { align: 'right' });
+      
+      yPosition += 18;
+    }
+    
     // === NOTES SECTION ===
     if (yPosition > 250) {
       doc.addPage();
