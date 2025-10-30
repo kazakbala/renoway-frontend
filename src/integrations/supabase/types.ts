@@ -19,18 +19,29 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          tenant_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          tenant_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clients: {
         Row: {
@@ -39,6 +50,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          tenant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -47,6 +59,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          tenant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -55,30 +68,50 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          tenant_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clients_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
           created_at: string
           email: string | null
           id: string
+          tenant_id: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           email?: string | null
           id?: string
+          tenant_id?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           email?: string | null
           id?: string
+          tenant_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_room_works: {
         Row: {
@@ -87,6 +120,7 @@ export type Database = {
           is_selected: boolean
           project_room_id: string
           quantity: number
+          tenant_id: string | null
           work_id: string
         }
         Insert: {
@@ -95,6 +129,7 @@ export type Database = {
           is_selected?: boolean
           project_room_id: string
           quantity?: number
+          tenant_id?: string | null
           work_id: string
         }
         Update: {
@@ -103,6 +138,7 @@ export type Database = {
           is_selected?: boolean
           project_room_id?: string
           quantity?: number
+          tenant_id?: string | null
           work_id?: string
         }
         Relationships: [
@@ -111,6 +147,13 @@ export type Database = {
             columns: ["project_room_id"]
             isOneToOne: false
             referencedRelation: "project_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_room_works_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
           {
@@ -132,6 +175,7 @@ export type Database = {
           perimeter: number | null
           project_id: string
           room_type_id: string
+          tenant_id: string | null
           wall_area: number | null
         }
         Insert: {
@@ -143,6 +187,7 @@ export type Database = {
           perimeter?: number | null
           project_id: string
           room_type_id: string
+          tenant_id?: string | null
           wall_area?: number | null
         }
         Update: {
@@ -154,6 +199,7 @@ export type Database = {
           perimeter?: number | null
           project_id?: string
           room_type_id?: string
+          tenant_id?: string | null
           wall_area?: number | null
         }
         Relationships: [
@@ -171,6 +217,13 @@ export type Database = {
             referencedRelation: "room_types"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "project_rooms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
         ]
       }
       projects: {
@@ -183,6 +236,7 @@ export type Database = {
           id: string
           name: string
           price_multiplier: number | null
+          tenant_id: string | null
           timeline_categories: Json | null
           updated_at: string
           user_id: string
@@ -196,6 +250,7 @@ export type Database = {
           id?: string
           name: string
           price_multiplier?: number | null
+          tenant_id?: string | null
           timeline_categories?: Json | null
           updated_at?: string
           user_id: string
@@ -209,6 +264,7 @@ export type Database = {
           id?: string
           name?: string
           price_multiplier?: number | null
+          tenant_id?: string | null
           timeline_categories?: Json | null
           updated_at?: string
           user_id?: string
@@ -221,9 +277,45 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "projects_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
         ]
       }
       room_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
         Row: {
           created_at: string
           id: string
@@ -246,18 +338,21 @@ export type Database = {
           created_at: string
           id: string
           room_type_id: string
+          tenant_id: string | null
           work_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           room_type_id: string
+          tenant_id?: string | null
           work_id: string
         }
         Update: {
           created_at?: string
           id?: string
           room_type_id?: string
+          tenant_id?: string | null
           work_id?: string
         }
         Relationships: [
@@ -266,6 +361,13 @@ export type Database = {
             columns: ["room_type_id"]
             isOneToOne: false
             referencedRelation: "room_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_room_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
           {
@@ -287,6 +389,7 @@ export type Database = {
           is_general: boolean
           name: string
           price_per_unit: number
+          tenant_id: string | null
           unit_type: string
           updated_at: string
         }
@@ -299,6 +402,7 @@ export type Database = {
           is_general?: boolean
           name: string
           price_per_unit: number
+          tenant_id?: string | null
           unit_type: string
           updated_at?: string
         }
@@ -311,6 +415,7 @@ export type Database = {
           is_general?: boolean
           name?: string
           price_per_unit?: number
+          tenant_id?: string | null
           unit_type?: string
           updated_at?: string
         }
@@ -320,6 +425,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "works_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -333,6 +445,7 @@ export type Database = {
       gen_random_uuid: { Args: never; Returns: string }
       gen_salt: { Args: { "": string }; Returns: string }
       generate_share_token: { Args: never; Returns: string }
+      get_user_tenant_id: { Args: never; Returns: string }
       pgp_armor_headers: {
         Args: { "": string }
         Returns: Record<string, unknown>[]
