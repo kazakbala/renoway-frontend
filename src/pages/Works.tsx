@@ -269,6 +269,23 @@ const Works = () => {
     }
   };
 
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this category?")) return;
+
+    const { error } = await supabase.from("categories").delete().eq("id", id);
+
+    if (error) {
+      toast({
+        title: "Error deleting category",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Category deleted successfully" });
+      loadData();
+    }
+  };
+
   const handleDeleteRoomType = async (id: string) => {
     if (!confirm("Are you sure you want to delete this room type?")) return;
 
@@ -472,6 +489,9 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
                   {categories.map((cat) => (
                     <div key={cat.id} className="flex items-center justify-between p-2 border rounded">
                       <span>{cat.name}</span>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
