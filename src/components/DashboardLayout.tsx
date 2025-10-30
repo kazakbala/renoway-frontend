@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -31,6 +32,33 @@ function AppSidebar() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { state } = useSidebar();
+  const [tenantName, setTenantName] = useState("Renoway");
+
+  useEffect(() => {
+    const fetchTenantName = async () => {
+      if (!user) return;
+      
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (profile?.tenant_id) {
+        const { data: tenant } = await supabase
+          .from("tenants")
+          .select("name")
+          .eq("id", profile.tenant_id)
+          .single();
+
+        if (tenant?.name) {
+          setTenantName(tenant.name);
+        }
+      }
+    };
+
+    fetchTenantName();
+  }, [user]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -45,7 +73,7 @@ function AppSidebar() {
             <Building2 className="w-5 h-5 text-primary-foreground" />
           </div>
           {state !== "collapsed" && (
-            <span className="font-bold text-lg">Renoway</span>
+            <span className="font-bold text-lg">{tenantName}</span>
           )}
         </div>
       </SidebarHeader>
