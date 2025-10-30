@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,18 +11,46 @@ import { Building2 } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       navigate("/dashboard");
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    const token = searchParams.get("invite");
+    if (token) {
+      setInviteToken(token);
+      setIsSignUp(true);
+      // Fetch invitation details
+      supabase
+        .from("invitations")
+        .select("email")
+        .eq("token", token)
+        .eq("status", "pending")
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setInviteEmail(data.email);
+            setEmail(data.email);
+            toast({
+              title: "Invitation Found",
+              description: `You've been invited to join a team. Please complete your signup.`,
+            });
+          }
+        });
+    }
+  }, [searchParams]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -90,7 +118,11 @@ const Auth = () => {
           </div>
           <CardTitle className="text-2xl font-bold">Renoway Dashboard</CardTitle>
           <CardDescription>
-            {isSignUp ? "Create an account" : "Sign in to your account"}
+            {inviteToken 
+              ? "Join your team" 
+              : isSignUp 
+                ? "Create an account" 
+                : "Sign in to your account"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -140,6 +172,7 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={!!inviteEmail}
               />
             </div>
             <div className="space-y-2">
@@ -158,17 +191,19 @@ const Auth = () => {
             </Button>
           </form>
 
-          <div className="text-center text-sm">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-primary hover:underline"
-            >
-              {isSignUp
-                ? "Already have an account? Sign in"
-                : "Don't have an account? Sign up"}
-            </button>
-          </div>
+          {!inviteToken && (
+            <div className="text-center text-sm">
+              <button
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-primary hover:underline"
+              >
+                {isSignUp
+                  ? "Already have an account? Sign in"
+                  : "Don't have an account? Sign up"}
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

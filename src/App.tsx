@@ -10,6 +10,7 @@ import Clients from "./pages/Clients";
 import Works from "./pages/Works";
 import Projects from "./pages/Projects";
 import ProjectForm from "./pages/ProjectForm";
+import Team from "./pages/Team";
 import DashboardLayout from "@/components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="projects" element={<Projects />} />
               <Route path="projects/new" element={<ProjectForm />} />
               <Route path="projects/:id" element={<ProjectForm />} />
+              <Route path="team" element={<Team />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
