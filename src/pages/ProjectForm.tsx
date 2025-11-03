@@ -274,7 +274,18 @@ const ProjectForm = () => {
 
   const updateRoomWork = (roomIndex: number, workId: string, field: "is_selected" | "quantity" | "custom_price_per_unit", value: any) => {
     const newRooms = [...rooms];
-    const workIndex = newRooms[roomIndex].works.findIndex((w) => w.work_id === workId);
+    let workIndex = newRooms[roomIndex].works.findIndex((w) => w.work_id === workId);
+
+    // If work doesn't exist in the array, add it first
+    if (workIndex === -1) {
+      newRooms[roomIndex].works.push({
+        work_id: workId,
+        is_selected: false,
+        quantity: 0,
+        custom_price_per_unit: null,
+      });
+      workIndex = newRooms[roomIndex].works.length - 1;
+    }
 
     if (field === "is_selected" && value) {
       // Auto-calculate quantity when selecting a work
