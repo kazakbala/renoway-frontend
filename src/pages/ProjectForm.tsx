@@ -816,7 +816,10 @@ const ProjectForm = () => {
     doc.text(`Balance (${remainingPercentage}%):`, rightColumnX + 5, yPosition);
     doc.text(`AED ${(grandTotal - advanceAmount).toFixed(2)}`, 185, yPosition, { align: "right" });
     
-    yPosition += 18;
+    // Ensure timeline starts after payment terms box (which is 65 units tall)
+    const summaryEndY = yPosition;
+    const paymentTermsEndY = paymentTermsY + 65;
+    yPosition = Math.max(summaryEndY, paymentTermsEndY) + 18;
     
     // === PROJECT TIMELINE ===
     if (timelineCategories.length > 0) {
