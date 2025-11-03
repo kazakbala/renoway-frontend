@@ -66,6 +66,7 @@ interface RoomWork {
   work_id: string;
   is_selected: boolean;
   quantity: number;
+  custom_price_per_unit?: number | null;
   work?: Work;
 }
 
@@ -140,7 +141,7 @@ const ProjectForm = () => {
             `
             *,
             room_types(id, name),
-            project_room_works(work_id, is_selected, quantity)
+            project_room_works(work_id, is_selected, quantity, custom_price_per_unit)
           `,
           )
           .eq("project_id", id);
@@ -152,6 +153,7 @@ const ProjectForm = () => {
                 work_id: w.work_id,
                 is_selected: w.is_selected,
                 quantity: w.quantity,
+                custom_price_per_unit: w.custom_price_per_unit,
               }));
 
               return {
@@ -230,6 +232,7 @@ const ProjectForm = () => {
           work_id: work.id,
           is_selected: false,
           quantity: 0,
+          custom_price_per_unit: null,
         })),
       };
     } else {
@@ -269,7 +272,7 @@ const ProjectForm = () => {
     }
   };
 
-  const updateRoomWork = (roomIndex: number, workId: string, field: "is_selected" | "quantity", value: any) => {
+  const updateRoomWork = (roomIndex: number, workId: string, field: "is_selected" | "quantity" | "custom_price_per_unit", value: any) => {
     const newRooms = [...rooms];
     const workIndex = newRooms[roomIndex].works.findIndex((w) => w.work_id === workId);
 
@@ -298,7 +301,8 @@ const ProjectForm = () => {
       if (rw.is_selected) {
         const work = allWorks.find((w) => w.id === rw.work_id);
         if (work) {
-          return sum + work.price_per_unit * priceMultiplier * rw.quantity;
+          const effectivePrice = rw.custom_price_per_unit ?? (work.price_per_unit * priceMultiplier);
+          return sum + effectivePrice * rw.quantity;
         }
       }
       return sum;
@@ -383,6 +387,7 @@ const ProjectForm = () => {
               work_id: w.work_id,
               is_selected: w.is_selected,
               quantity: w.quantity,
+              custom_price_per_unit: w.custom_price_per_unit,
             }));
 
           if (roomWorks.length > 0) {
@@ -425,6 +430,7 @@ const ProjectForm = () => {
             work_id: w.work_id,
             is_selected: w.is_selected,
             quantity: w.quantity,
+            custom_price_per_unit: w.custom_price_per_unit,
           }));
 
         if (roomWorks.length > 0) {
@@ -1153,7 +1159,7 @@ const ProjectForm = () => {
                       {room.room_type_id && getWorksForRoom(room).length > 0 && (
                         <div className="space-y-2">
                           <Label>Works</Label>
-                          <Accordion type="multiple" className="w-full">
+                          <Accordion type="multiple" className="w-full space-y-2">
                             {(() => {
                               const worksForRoom = getWorksForRoom(room);
                               const groupedWorks = worksForRoom.reduce((acc, work) => {
@@ -1166,18 +1172,19 @@ const ProjectForm = () => {
                               }, {} as Record<string, typeof worksForRoom>);
 
                               return Object.entries(groupedWorks).map(([categoryName, works]) => (
-                                <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg px-4">
-                                  <AccordionTrigger className="hover:no-underline">
-                                    <span className="font-semibold">{categoryName}</span>
+                                <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg">
+                                  <AccordionTrigger className="hover:no-underline px-4 py-2">
+                                    <span className="font-semibold text-sm">{categoryName}</span>
                                   </AccordionTrigger>
-                                  <AccordionContent>
+                                  <AccordionContent className="px-4 pb-4">
                                     <div className="border rounded-lg overflow-hidden">
                                       <Table>
                                         <TableHeader>
                                           <TableRow>
                                             <TableHead className="w-[50px]">Select</TableHead>
                                             <TableHead>Work</TableHead>
-                                            <TableHead>Price/Unit</TableHead>
+                                            <TableHead>Base Price</TableHead>
+                                            <TableHead>Custom Price</TableHead>
                                             <TableHead>Unit</TableHead>
                                             <TableHead>Quantity</TableHead>
                                             <TableHead>Subtotal</TableHead>
@@ -1189,7 +1196,9 @@ const ProjectForm = () => {
                                               work_id: work.id,
                                               is_selected: false,
                                               quantity: 0,
+                                              custom_price_per_unit: null,
                                             };
+                                            const effectivePrice = roomWork.custom_price_per_unit ?? (work.price_per_unit * priceMultiplier);
                                             return (
                                               <TableRow key={work.id}>
                                                 <TableCell>
@@ -1201,7 +1210,29 @@ const ProjectForm = () => {
                                                   />
                                                 </TableCell>
                                                 <TableCell>{work.name}</TableCell>
-                                                <TableCell>AED {(work.price_per_unit * priceMultiplier).toFixed(2)}</TableCell>
+                                                <TableCell>
+                                                  <span className="text-muted-foreground text-sm">
+                                                    AED {(work.price_per_unit * priceMultiplier).toFixed(2)}
+                                                  </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    placeholder="Override"
+                                                    value={roomWork.custom_price_per_unit ?? ""}
+                                                    onChange={(e) =>
+                                                      updateRoomWork(
+                                                        roomIndex,
+                                                        work.id,
+                                                        "custom_price_per_unit",
+                                                        e.target.value ? parseFloat(e.target.value) : null,
+                                                      )
+                                                    }
+                                                    disabled={!roomWork.is_selected}
+                                                    className="w-28"
+                                                  />
+                                                </TableCell>
                                                 <TableCell>{work.unit_type}</TableCell>
                                                 <TableCell>
                                                   <div className="flex items-center gap-2">
@@ -1235,7 +1266,7 @@ const ProjectForm = () => {
                                                     </Button>
                                                   </div>
                                                 </TableCell>
-                                                <TableCell>AED {(work.price_per_unit * priceMultiplier * roomWork.quantity).toFixed(2)}</TableCell>
+                                                <TableCell>AED {(effectivePrice * roomWork.quantity).toFixed(2)}</TableCell>
                                               </TableRow>
                                             );
                                           })}
