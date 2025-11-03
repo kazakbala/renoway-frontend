@@ -506,7 +506,7 @@ const ProjectForm = () => {
   const generatePDF = async () => {
     const doc = new jsPDF();
     
-    // Get tenant logo
+    // Get tenant info
     const { data: profileData } = await supabase
       .from("profiles")
       .select("tenant_id")
@@ -514,14 +514,32 @@ const ProjectForm = () => {
       .single();
 
     let logoUrl = null;
+    let companyDetails = "";
+    let bankDetails = "";
+    
     if (profileData?.tenant_id) {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("logo_url")
+        .select("logo_url, company_details, bank_details")
         .eq("id", profileData.tenant_id)
         .single();
       logoUrl = tenantData?.logo_url;
+      companyDetails = tenantData?.company_details || "";
+      bankDetails = tenantData?.bank_details || "";
     }
+    
+    // Helper function to convert HTML to plain text and split into lines
+    const htmlToLines = (html: string): string[] => {
+      if (!html) return [];
+      // Remove HTML tags
+      const text = html.replace(/<[^>]*>/g, '');
+      // Decode HTML entities
+      const textarea = document.createElement('textarea');
+      textarea.innerHTML = text;
+      const decoded = textarea.value;
+      // Split by newlines and filter empty lines
+      return decoded.split('\n').filter(line => line.trim());
+    };
     
     // Get client details
     const client = clients.find(c => c.id === clientId);
@@ -605,12 +623,18 @@ const ProjectForm = () => {
     doc.text("From", 20, 68);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("Elite Interiors LLC", 20, 74);
-    doc.text("Business Bay, Dubai, UAE", 20, 79);
-    doc.text("License No: 123456", 20, 84);
-    doc.text("Registration No: 789012", 20, 89);
-    doc.text("Phone: +971 4 123 4567", 20, 94);
-    doc.text("Email: info@eliteinteriors.ae", 20, 99);
+    
+    const companyLines = htmlToLines(companyDetails);
+    if (companyLines.length > 0) {
+      let yPos = 74;
+      companyLines.forEach(line => {
+        doc.text(line, 20, yPos);
+        yPos += 5;
+      });
+    } else {
+      // Fallback if no company details set
+      doc.text("Company details not configured", 20, 74);
+    }
     
     // To section (right aligned)
     doc.setFont("helvetica", "bold");
@@ -994,13 +1018,18 @@ const ProjectForm = () => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(70, 70, 70);
-    doc.text("Account Holder: Elite Interiors LLC", 20, yPosition);
-    yPosition += 5;
-    doc.text("Bank Name: Emirates NBD", 20, yPosition);
-    yPosition += 5;
-    doc.text("Account Number: 1234567890123", 20, yPosition);
-    yPosition += 5;
-    doc.text("IBAN: AE07 0331 2345 6789 0123 456", 20, yPosition);
+    
+    const bankLines = htmlToLines(bankDetails);
+    if (bankLines.length > 0) {
+      bankLines.forEach(line => {
+        doc.text(line, 20, yPosition);
+        yPosition += 5;
+      });
+    } else {
+      // Fallback if no bank details set
+      doc.text("Bank details not configured", 20, yPosition);
+      yPosition += 5;
+    }
     
     // Signature area (right side)
     const signatureY = yPosition - 10;

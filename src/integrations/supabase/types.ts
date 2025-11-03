@@ -361,18 +361,24 @@ export type Database = {
       }
       tenants: {
         Row: {
+          bank_details: string | null
+          company_details: string | null
           created_at: string
           id: string
           logo_url: string | null
           name: string
         }
         Insert: {
+          bank_details?: string | null
+          company_details?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null
           name: string
         }
         Update: {
+          bank_details?: string | null
+          company_details?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null

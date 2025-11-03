@@ -8,12 +8,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, X } from "lucide-react";
 import { useDropzone } from "react-dropzone";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
+import "@/styles/quill.css";
 
 const CompanySettings = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [companyName, setCompanyName] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [companyDetails, setCompanyDetails] = useState("");
+  const [bankDetails, setBankDetails] = useState("");
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,13 +40,15 @@ const CompanySettings = () => {
           
           const { data: tenant } = await supabase
             .from("tenants")
-            .select("name, logo_url")
+            .select("name, logo_url, company_details, bank_details")
             .eq("id", profile.tenant_id)
             .single();
 
           if (tenant) {
             setCompanyName(tenant.name || "");
             setLogoUrl(tenant.logo_url || null);
+            setCompanyDetails(tenant.company_details || "");
+            setBankDetails(tenant.bank_details || "");
           }
         }
       } catch (error: any) {
@@ -158,14 +165,18 @@ const CompanySettings = () => {
     try {
       const { error } = await supabase
         .from("tenants")
-        .update({ name: companyName })
+        .update({ 
+          name: companyName,
+          company_details: companyDetails,
+          bank_details: bankDetails
+        })
         .eq("id", tenantId);
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Company name updated successfully",
+        description: "Company settings updated successfully",
       });
     } catch (error: any) {
       toast({
@@ -248,6 +259,38 @@ const CompanySettings = () => {
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="companyDetails">Company Details</Label>
+              <div className="border rounded-md">
+                <ReactQuill
+                  theme="snow"
+                  value={companyDetails}
+                  onChange={setCompanyDetails}
+                  placeholder="Enter company details (address, contact, etc.)"
+                  className="bg-background"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This information will appear in the "From" section of exported PDFs
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bankDetails">Bank Details</Label>
+              <div className="border rounded-md">
+                <ReactQuill
+                  theme="snow"
+                  value={bankDetails}
+                  onChange={setBankDetails}
+                  placeholder="Enter bank details (account name, number, etc.)"
+                  className="bg-background"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This information will appear in the bank details section of exported PDFs
+              </p>
             </div>
 
             <Button type="submit" disabled={saving}>
