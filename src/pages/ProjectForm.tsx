@@ -481,23 +481,6 @@ const ProjectForm = () => {
   const generatePDF = async () => {
     const doc = new jsPDF();
     
-    // Get tenant logo
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("user_id", user?.id)
-      .single();
-
-    let logoUrl = null;
-    if (profileData?.tenant_id) {
-      const { data: tenantData } = await supabase
-        .from("tenants")
-        .select("logo_url")
-        .eq("id", profileData.tenant_id)
-        .single();
-      logoUrl = tenantData?.logo_url;
-    }
-    
     // Get client details
     const client = clients.find(c => c.id === clientId);
     const clientName = client?.full_name || "N/A";
@@ -519,27 +502,11 @@ const ProjectForm = () => {
     
     // === PAGE 1: HEADER & INFO ===
     
-    // Add logo if available
-    if (logoUrl) {
-      try {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = logoUrl;
-        });
-        doc.addImage(img, 'PNG', 15, 10, 30, 30);
-      } catch (error) {
-        console.error("Error loading logo:", error);
-      }
-    }
-    
     // Header - Quotation & Company Name
     doc.setFontSize(32);
     doc.setTextColor(20, 20, 20);
     doc.setFont("helvetica", "bold");
-    doc.text("Quotation", logoUrl ? 50 : 20, 25);
+    doc.text("Quotation", 20, 25);
     
     // Company/Brand name on right
     doc.setFontSize(28);
