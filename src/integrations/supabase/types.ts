@@ -157,6 +157,7 @@ export type Database = {
       project_room_works: {
         Row: {
           created_at: string
+          custom_price_per_unit: number | null
           id: string
           is_selected: boolean
           project_room_id: string
@@ -166,6 +167,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_price_per_unit?: number | null
           id?: string
           is_selected?: boolean
           project_room_id: string
@@ -175,6 +177,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_price_per_unit?: number | null
           id?: string
           is_selected?: boolean
           project_room_id?: string
