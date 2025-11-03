@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { SortableTab } from "@/components/SortableTab";
 import { SortableTimelineItem } from "@/components/SortableTimelineItem";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,12 +46,19 @@ interface RoomType {
   name: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 interface Work {
   id: string;
   name: string;
   price_per_unit: number;
   unit_type: string;
   calculation_base: string;
+  category_id: string | null;
+  categories?: Category;
   work_room_types?: Array<{ room_type_id: string }>;
 }
 
@@ -107,7 +115,7 @@ const ProjectForm = () => {
     const [clientsRes, roomTypesRes, worksRes] = await Promise.all([
       supabase.from("clients").select("*").order("full_name"),
       supabase.from("room_types").select("*").order("name"),
-      supabase.from("works").select("*, work_room_types(room_type_id)"),
+      supabase.from("works").select("*, work_room_types(room_type_id), categories(id, name)"),
     ]);
 
     if (clientsRes.data) setClients(clientsRes.data);
@@ -1145,77 +1153,100 @@ const ProjectForm = () => {
                       {room.room_type_id && getWorksForRoom(room).length > 0 && (
                         <div className="space-y-2">
                           <Label>Works</Label>
-                          <div className="border rounded-lg overflow-hidden">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-[50px]">Select</TableHead>
-                                  <TableHead>Work</TableHead>
-                                  <TableHead>Price/Unit</TableHead>
-                                  <TableHead>Unit</TableHead>
-                                  <TableHead>Quantity</TableHead>
-                                  <TableHead>Subtotal</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {getWorksForRoom(room).map((work) => {
-                                  const roomWork = work.roomWork || {
-                                    work_id: work.id,
-                                    is_selected: false,
-                                    quantity: 0,
-                                  };
-                                  return (
-                                    <TableRow key={work.id}>
-                                      <TableCell>
-                                        <Checkbox
-                                          checked={roomWork.is_selected}
-                                          onCheckedChange={(checked) =>
-                                            updateRoomWork(roomIndex, work.id, "is_selected", checked)
-                                          }
-                                        />
-                                      </TableCell>
-                                      <TableCell>{work.name}</TableCell>
-                                      <TableCell>AED {(work.price_per_unit * priceMultiplier).toFixed(2)}</TableCell>
-                                      <TableCell>{work.unit_type}</TableCell>
-                                      <TableCell>
-                                        <div className="flex items-center gap-2">
-                                          <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={roomWork.quantity}
-                                            onChange={(e) =>
-                                              updateRoomWork(
-                                                roomIndex,
-                                                work.id,
-                                                "quantity",
-                                                parseFloat(e.target.value) || 0,
-                                              )
-                                            }
-                                            disabled={!roomWork.is_selected}
-                                            className="w-24"
-                                          />
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => {
-                                              const calculatedQty = calculateDefaultQuantity(work, room);
-                                              updateRoomWork(roomIndex, work.id, "quantity", calculatedQty);
-                                            }}
-                                            disabled={!roomWork.is_selected}
-                                            className="h-10 w-10"
-                                          >
-                                            <Calculator className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>AED {(work.price_per_unit * priceMultiplier * roomWork.quantity).toFixed(2)}</TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
+                          <Accordion type="multiple" className="w-full">
+                            {(() => {
+                              const worksForRoom = getWorksForRoom(room);
+                              const groupedWorks = worksForRoom.reduce((acc, work) => {
+                                const categoryName = work.categories?.name || "Uncategorized";
+                                if (!acc[categoryName]) {
+                                  acc[categoryName] = [];
+                                }
+                                acc[categoryName].push(work);
+                                return acc;
+                              }, {} as Record<string, typeof worksForRoom>);
+
+                              return Object.entries(groupedWorks).map(([categoryName, works]) => (
+                                <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg px-4">
+                                  <AccordionTrigger className="hover:no-underline">
+                                    <span className="font-semibold">{categoryName}</span>
+                                  </AccordionTrigger>
+                                  <AccordionContent>
+                                    <div className="border rounded-lg overflow-hidden">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead className="w-[50px]">Select</TableHead>
+                                            <TableHead>Work</TableHead>
+                                            <TableHead>Price/Unit</TableHead>
+                                            <TableHead>Unit</TableHead>
+                                            <TableHead>Quantity</TableHead>
+                                            <TableHead>Subtotal</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {works.map((work) => {
+                                            const roomWork = work.roomWork || {
+                                              work_id: work.id,
+                                              is_selected: false,
+                                              quantity: 0,
+                                            };
+                                            return (
+                                              <TableRow key={work.id}>
+                                                <TableCell>
+                                                  <Checkbox
+                                                    checked={roomWork.is_selected}
+                                                    onCheckedChange={(checked) =>
+                                                      updateRoomWork(roomIndex, work.id, "is_selected", checked)
+                                                    }
+                                                  />
+                                                </TableCell>
+                                                <TableCell>{work.name}</TableCell>
+                                                <TableCell>AED {(work.price_per_unit * priceMultiplier).toFixed(2)}</TableCell>
+                                                <TableCell>{work.unit_type}</TableCell>
+                                                <TableCell>
+                                                  <div className="flex items-center gap-2">
+                                                    <Input
+                                                      type="number"
+                                                      step="0.01"
+                                                      value={roomWork.quantity}
+                                                      onChange={(e) =>
+                                                        updateRoomWork(
+                                                          roomIndex,
+                                                          work.id,
+                                                          "quantity",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      disabled={!roomWork.is_selected}
+                                                      className="w-24"
+                                                    />
+                                                    <Button
+                                                      type="button"
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      onClick={() => {
+                                                        const calculatedQty = calculateDefaultQuantity(work, room);
+                                                        updateRoomWork(roomIndex, work.id, "quantity", calculatedQty);
+                                                      }}
+                                                      disabled={!roomWork.is_selected}
+                                                      className="h-10 w-10"
+                                                    >
+                                                      <Calculator className="h-4 w-4" />
+                                                    </Button>
+                                                  </div>
+                                                </TableCell>
+                                                <TableCell>AED {(work.price_per_unit * priceMultiplier * roomWork.quantity).toFixed(2)}</TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              ));
+                            })()}
+                          </Accordion>
                           <div className="flex justify-end pt-2">
                             <div className="text-lg font-semibold">
                               Room Subtotal: AED {calculateRoomSubtotal(room).toFixed(2)}
