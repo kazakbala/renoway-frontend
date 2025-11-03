@@ -1171,11 +1171,29 @@ const ProjectForm = () => {
                                 return acc;
                               }, {} as Record<string, typeof worksForRoom>);
 
-                              return Object.entries(groupedWorks).map(([categoryName, works]) => (
-                                <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg">
-                                  <AccordionTrigger className="hover:no-underline px-4 py-2">
-                                    <span className="font-semibold text-sm">{categoryName}</span>
-                                  </AccordionTrigger>
+                              return Object.entries(groupedWorks).map(([categoryName, works]) => {
+                                const selectedCount = works.filter(work => {
+                                  const roomWork = work.roomWork || {
+                                    work_id: work.id,
+                                    is_selected: false,
+                                    quantity: 0,
+                                    custom_price_per_unit: null,
+                                  };
+                                  return roomWork.is_selected;
+                                }).length;
+
+                                return (
+                                  <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg">
+                                    <AccordionTrigger className="hover:no-underline px-4 py-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-sm">{categoryName}</span>
+                                        {selectedCount > 0 && (
+                                          <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-2 py-0.5 rounded-full">
+                                            {selectedCount}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </AccordionTrigger>
                                   <AccordionContent className="px-4 pb-4">
                                     <div className="border rounded-lg overflow-hidden">
                                       <Table>
@@ -1272,10 +1290,11 @@ const ProjectForm = () => {
                                           })}
                                         </TableBody>
                                       </Table>
-                                    </div>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              ));
+                                     </div>
+                                   </AccordionContent>
+                                 </AccordionItem>
+                                );
+                              });
                             })()}
                           </Accordion>
                           <div className="flex justify-end pt-2">
