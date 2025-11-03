@@ -481,6 +481,23 @@ const ProjectForm = () => {
   const generatePDF = async () => {
     const doc = new jsPDF();
     
+    // Get tenant logo
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("user_id", user?.id)
+      .single();
+
+    let logoUrl = null;
+    if (profileData?.tenant_id) {
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("logo_url")
+        .eq("id", profileData.tenant_id)
+        .single();
+      logoUrl = tenantData?.logo_url;
+    }
+    
     // Get client details
     const client = clients.find(c => c.id === clientId);
     const clientName = client?.full_name || "N/A";
@@ -502,16 +519,34 @@ const ProjectForm = () => {
     
     // === PAGE 1: HEADER & INFO ===
     
-    // Header - Quotation & Company Name
+    // Header - Quotation title
     doc.setFontSize(32);
     doc.setTextColor(20, 20, 20);
     doc.setFont("helvetica", "bold");
     doc.text("Quotation", 20, 25);
     
-    // Company/Brand name on right
-    doc.setFontSize(28);
-    doc.setTextColor(40, 80, 200); // Blue accent
-    doc.text("Your Company", 190, 25, { align: "right" });
+    // Company logo on right (fixed height, auto width)
+    if (logoUrl) {
+      try {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = logoUrl;
+        });
+        
+        // Fixed height of 20mm, calculate width based on aspect ratio
+        const fixedHeight = 20;
+        const aspectRatio = img.width / img.height;
+        const calculatedWidth = fixedHeight * aspectRatio;
+        
+        // Position from right edge
+        doc.addImage(img, 'PNG', 190 - calculatedWidth, 10, calculatedWidth, fixedHeight);
+      } catch (error) {
+        console.error("Error loading logo:", error);
+      }
+    }
     
     // Quotation number
     doc.setFontSize(11);
