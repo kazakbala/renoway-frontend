@@ -1051,10 +1051,6 @@ const ProjectForm = () => {
     doc.setDrawColor(180, 180, 180);
     doc.line(130, signatureY + 20, 190, signatureY + 20);
     
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(user?.email?.split('@')[0] || "Authorized Person", 190, signatureY + 25, { align: "right" });
-    
     // Save PDF
     doc.save(`Quotation_${quotationNumber}_${projectName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
     
