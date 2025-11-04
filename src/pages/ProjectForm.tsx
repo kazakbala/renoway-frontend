@@ -531,12 +531,22 @@ const ProjectForm = () => {
     // Helper function to convert HTML to plain text and split into lines
     const htmlToLines = (html: string): string[] => {
       if (!html) return [];
-      // Remove HTML tags
-      const text = html.replace(/<[^>]*>/g, '');
+      
+      // First, convert HTML line breaks to newline characters
+      let text = html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<\/li>/gi, '\n');
+      
+      // Remove all other HTML tags
+      text = text.replace(/<[^>]*>/g, '');
+      
       // Decode HTML entities
       const textarea = document.createElement('textarea');
       textarea.innerHTML = text;
       const decoded = textarea.value;
+      
       // Split by newlines and filter empty lines
       return decoded.split('\n').filter(line => line.trim());
     };
