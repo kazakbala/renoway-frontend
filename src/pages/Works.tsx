@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Tag, Search, Upload, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Search, Upload, Download, ArrowUp, ArrowDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -63,6 +63,7 @@ interface Work {
   unit_type: string;
   price_per_unit: number;
   calculation_base: string | null;
+  display_order?: number;
   categories?: Category;
   room_type_ids?: string[];
 }
@@ -100,7 +101,7 @@ const Works = () => {
 
   const loadData = async () => {
     const [worksRes, categoriesRes, roomTypesRes] = await Promise.all([
-      supabase.from("works").select("*, categories(*)").order("created_at", { ascending: false }),
+      supabase.from("works").select("*, categories(*)").order("display_order", { ascending: true }),
       supabase.from("categories").select("*").order("name"),
       supabase.from("room_types").select("*").order("name"),
     ]);
@@ -361,6 +362,38 @@ const Works = () => {
     handleEdit(work);
     setSearchQuery("");
     setShowSearchDropdown(false);
+  };
+
+  const handleMoveUp = async (work: Work, categoryWorks: Work[]) => {
+    const currentIndex = categoryWorks.findIndex((w) => w.id === work.id);
+    if (currentIndex === 0) return; // Already at the top
+
+    const prevWork = categoryWorks[currentIndex - 1];
+
+    // Swap display_order values
+    await Promise.all([
+      supabase.from("works").update({ display_order: prevWork.display_order }).eq("id", work.id),
+      supabase.from("works").update({ display_order: work.display_order }).eq("id", prevWork.id),
+    ]);
+
+    toast({ title: "Work moved up" });
+    loadData();
+  };
+
+  const handleMoveDown = async (work: Work, categoryWorks: Work[]) => {
+    const currentIndex = categoryWorks.findIndex((w) => w.id === work.id);
+    if (currentIndex === categoryWorks.length - 1) return; // Already at the bottom
+
+    const nextWork = categoryWorks[currentIndex + 1];
+
+    // Swap display_order values
+    await Promise.all([
+      supabase.from("works").update({ display_order: nextWork.display_order }).eq("id", work.id),
+      supabase.from("works").update({ display_order: work.display_order }).eq("id", nextWork.id),
+    ]);
+
+    toast({ title: "Work moved down" });
+    loadData();
   };
 
   const downloadExampleCSV = () => {
@@ -832,17 +865,40 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[80px]">Order</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Room Types</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Unit</TableHead>
                       <TableHead>Price (AED)</TableHead>
-                      <TableHead className="w-[100px]">Actions</TableHead>
+                      <TableHead className="w-[120px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {categoryWorks.map((work) => (
+                    {categoryWorks.map((work, index) => (
                       <TableRow key={work.id}>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleMoveUp(work, categoryWorks)}
+                              disabled={index === 0}
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleMoveDown(work, categoryWorks)}
+                              disabled={index === categoryWorks.length - 1}
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell className="font-medium">{work.name}</TableCell>
                         <TableCell>
                           {work.room_type_ids && work.room_type_ids.length > 0 ? (
@@ -896,17 +952,40 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[80px]">Order</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Room Types</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Unit</TableHead>
                     <TableHead>Price (AED)</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                    <TableHead className="w-[120px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {uncategorizedWorks.map((work) => (
+                  {uncategorizedWorks.map((work, index) => (
                     <TableRow key={work.id}>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleMoveUp(work, uncategorizedWorks)}
+                            disabled={index === 0}
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleMoveDown(work, uncategorizedWorks)}
+                            disabled={index === uncategorizedWorks.length - 1}
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium">{work.name}</TableCell>
                       <TableCell>
                         {work.room_type_ids && work.room_type_ids.length > 0 ? (

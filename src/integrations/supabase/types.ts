@@ -438,6 +438,7 @@ export type Database = {
           category_id: string | null
           created_at: string
           description: string | null
+          display_order: number | null
           id: string
           is_general: boolean
           name: string
@@ -451,6 +452,7 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           description?: string | null
+          display_order?: number | null
           id?: string
           is_general?: boolean
           name: string
@@ -464,6 +466,7 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           description?: string | null
+          display_order?: number | null
           id?: string
           is_general?: boolean
           name?: string
