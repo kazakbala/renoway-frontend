@@ -31,15 +31,19 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Tag, Search, Upload, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Command,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 
 interface Category {
   id: string;
@@ -76,8 +80,7 @@ const Works = () => {
   const [newCategory, setNewCategory] = useState("");
   const [newRoomType, setNewRoomType] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -331,25 +334,34 @@ const Works = () => {
     setOpen(true);
   };
 
-  // Filter works based on search query
-  const filteredWorks = works.filter((work) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      work.name.toLowerCase().includes(query) ||
-      work.description?.toLowerCase().includes(query) ||
-      work.categories?.name.toLowerCase().includes(query)
-    );
-  });
+  // Filter works for search dropdown (max 5 results)
+  const searchResults = searchQuery.trim()
+    ? works
+        .filter((work) => {
+          const query = searchQuery.toLowerCase();
+          return (
+            work.name.toLowerCase().includes(query) ||
+            work.description?.toLowerCase().includes(query) ||
+            work.categories?.name.toLowerCase().includes(query)
+          );
+        })
+        .slice(0, 5)
+    : [];
 
-  // Pagination
-  const totalPages = Math.ceil(filteredWorks.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedWorks = filteredWorks.slice(startIndex, startIndex + itemsPerPage);
+  // Group works by category
+  const worksByCategory = categories.map((category) => ({
+    category,
+    works: works.filter((work) => work.category_id === category.id),
+  }));
 
-  // Reset to page 1 when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
+  // Uncategorized works
+  const uncategorizedWorks = works.filter((work) => !work.category_id);
+
+  const handleSearchSelect = (work: Work) => {
+    handleEdit(work);
+    setSearchQuery("");
+    setShowSearchDropdown(false);
+  };
 
   const downloadExampleCSV = () => {
     const csvContent = `Category Name,Work Name,Description,Unit,Price
@@ -752,137 +764,192 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search works by name, description, or category..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+      <div className="relative">
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search works by name, description, or category..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSearchDropdown(true);
+              }}
+              onFocus={() => setShowSearchDropdown(true)}
+              onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
+              className="pl-10"
+            />
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {works.length} work{works.length !== 1 ? 's' : ''} total
+          </div>
         </div>
-        <div className="text-sm text-muted-foreground">
-          {filteredWorks.length} work{filteredWorks.length !== 1 ? 's' : ''} found
-        </div>
-      </div>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Room Types</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Unit</TableHead>
-              <TableHead>Price (AED)</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedWorks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  {searchQuery ? "No works found matching your search." : "No works yet. Add your first work to get started."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedWorks.map((work) => (
-                <TableRow key={work.id}>
-                  <TableCell className="font-medium">{work.name}</TableCell>
-                  <TableCell>
-                    {work.categories ? (
-                      <Badge variant="outline">{work.categories.name}</Badge>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {work.room_type_ids && work.room_type_ids.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {work.room_type_ids.map((rtId) => {
-                          const roomType = roomTypes.find((rt) => rt.id === rtId);
-                          return roomType ? (
-                            <Badge key={rtId} variant="secondary" className="text-xs">
-                              {roomType.name}
-                            </Badge>
-                          ) : null;
-                        })}
+        {showSearchDropdown && searchResults.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-background border rounded-lg shadow-lg">
+            <Command>
+              <CommandList>
+                <CommandGroup>
+                  {searchResults.map((work) => (
+                    <CommandItem
+                      key={work.id}
+                      onSelect={() => handleSearchSelect(work)}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex-1">
+                          <div className="font-medium">{work.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {work.categories?.name || "Uncategorized"}
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {work.price_per_unit.toFixed(2)} AED / {work.unit_type}
+                        </div>
                       </div>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-xs truncate">{work.description || "-"}</TableCell>
-                  <TableCell>{work.unit_type}</TableCell>
-                  <TableCell>{work.price_per_unit.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(work)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(work.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </div>
+        )}
       </div>
 
-      {totalPages > 1 && (
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-              />
-            </PaginationItem>
-            
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-              // Show first page, last page, current page, and pages around current
-              const showPage = page === 1 || 
-                              page === totalPages || 
-                              (page >= currentPage - 1 && page <= currentPage + 1);
-              
-              if (!showPage) {
-                // Show ellipsis
-                if (page === currentPage - 2 || page === currentPage + 2) {
-                  return (
-                    <PaginationItem key={page}>
-                      <span className="px-4">...</span>
-                    </PaginationItem>
-                  );
-                }
-                return null;
-              }
+      <Accordion type="multiple" className="space-y-4">
+        {worksByCategory.map(({ category, works: categoryWorks }) => (
+          categoryWorks.length > 0 && (
+            <AccordionItem key={category.id} value={category.id} className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{category.name}</Badge>
+                  <span className="text-sm text-muted-foreground">
+                    ({categoryWorks.length} work{categoryWorks.length !== 1 ? 's' : ''})
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Room Types</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Unit</TableHead>
+                      <TableHead>Price (AED)</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {categoryWorks.map((work) => (
+                      <TableRow key={work.id}>
+                        <TableCell className="font-medium">{work.name}</TableCell>
+                        <TableCell>
+                          {work.room_type_ids && work.room_type_ids.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {work.room_type_ids.map((rtId) => {
+                                const roomType = roomTypes.find((rt) => rt.id === rtId);
+                                return roomType ? (
+                                  <Badge key={rtId} variant="secondary" className="text-xs">
+                                    {roomType.name}
+                                  </Badge>
+                                ) : null;
+                              })}
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{work.description || "-"}</TableCell>
+                        <TableCell>{work.unit_type}</TableCell>
+                        <TableCell>{work.price_per_unit.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(work)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(work.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </AccordionContent>
+            </AccordionItem>
+          )
+        ))}
 
-              return (
-                <PaginationItem key={page}>
-                  <PaginationLink
-                    onClick={() => setCurrentPage(page)}
-                    isActive={currentPage === page}
-                    className="cursor-pointer"
-                  >
-                    {page}
-                  </PaginationLink>
-                </PaginationItem>
-              );
-            })}
+        {uncategorizedWorks.length > 0 && (
+          <AccordionItem value="uncategorized" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">Uncategorized</Badge>
+                <span className="text-sm text-muted-foreground">
+                  ({uncategorizedWorks.length} work{uncategorizedWorks.length !== 1 ? 's' : ''})
+                </span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Room Types</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead>Price (AED)</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {uncategorizedWorks.map((work) => (
+                    <TableRow key={work.id}>
+                      <TableCell className="font-medium">{work.name}</TableCell>
+                      <TableCell>
+                        {work.room_type_ids && work.room_type_ids.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {work.room_type_ids.map((rtId) => {
+                              const roomType = roomTypes.find((rt) => rt.id === rtId);
+                              return roomType ? (
+                                <Badge key={rtId} variant="secondary" className="text-xs">
+                                  {roomType.name}
+                                </Badge>
+                              ) : null;
+                            })}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">{work.description || "-"}</TableCell>
+                      <TableCell>{work.unit_type}</TableCell>
+                      <TableCell>{work.price_per_unit.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(work)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(work.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+      </Accordion>
 
-            <PaginationItem>
-              <PaginationNext 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+      {works.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          No works yet. Add your first work to get started.
+        </div>
       )}
     </div>
   );
