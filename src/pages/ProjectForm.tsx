@@ -682,7 +682,7 @@ const ProjectForm = () => {
       doc.setFontSize(11);
       doc.setTextColor(30, 30, 30);
       doc.setFont("helvetica", "bold");
-      doc.text(`${room.name} (${roomType?.name || "Unknown"})`, 22, yPosition);
+      doc.text(room.name, 22, yPosition);
       yPosition += 10;
       
       // Works table with clean design
