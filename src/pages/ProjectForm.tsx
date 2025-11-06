@@ -12,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SortableTab } from "@/components/SortableTab";
 import { SortableTimelineItem } from "@/components/SortableTimelineItem";
 import { useAuth } from "@/contexts/AuthContext";
@@ -195,11 +197,11 @@ const ProjectForm = () => {
         // Load project materials
         const { data: projMaterials } = await supabase
           .from("project_materials")
-          .select("*, materials(*)")
+          .select("id, material_id, quantity, materials(id, name, unit_type, price_per_unit)")
           .eq("project_id", id);
 
         if (projMaterials) {
-          setProjectMaterials(projMaterials);
+          setProjectMaterials(projMaterials as unknown as ProjectMaterial[]);
         }
       }
     }
@@ -354,6 +356,43 @@ const ProjectForm = () => {
     return rooms.reduce((sum, room) => sum + calculateRoomSubtotal(room), 0);
   };
 
+  const calculateMaterialsTotal = (): number => {
+    return projectMaterials.reduce((sum, pm) => {
+      const material = allMaterials.find(m => m.id === pm.material_id);
+      if (material) {
+        return sum + (material.price_per_unit * pm.quantity);
+      }
+      return sum;
+    }, 0);
+  };
+
+  const addMaterial = (materialId: string) => {
+    const existing = projectMaterials.find(pm => pm.material_id === materialId);
+    if (existing) {
+      toast({
+        title: "Material already added",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProjectMaterials([
+      ...projectMaterials,
+      { material_id: materialId, quantity: 1 }
+    ]);
+    setMaterialSearch("");
+  };
+
+  const updateMaterialQuantity = (materialId: string, quantity: number) => {
+    setProjectMaterials(projectMaterials.map(pm =>
+      pm.material_id === materialId ? { ...pm, quantity } : pm
+    ));
+  };
+
+  const removeMaterial = (materialId: string) => {
+    setProjectMaterials(projectMaterials.filter(pm => pm.material_id !== materialId));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -380,6 +419,9 @@ const ProjectForm = () => {
 
         // Delete existing rooms and their works (cascade will handle works)
         await supabase.from("project_rooms").delete().eq("project_id", id);
+
+        // Delete existing project materials
+        await supabase.from("project_materials").delete().eq("project_id", id);
       } else {
         // Create project
         const { data: project, error: projectError } = await supabase
@@ -438,6 +480,21 @@ const ProjectForm = () => {
           }
         }
 
+        // Insert project materials
+        if (projectMaterials.length > 0) {
+          const materialsToInsert = projectMaterials.map(pm => ({
+            project_id: projectId,
+            material_id: pm.material_id,
+            quantity: pm.quantity,
+          }));
+
+          const { error: materialsError } = await supabase
+            .from("project_materials")
+            .insert(materialsToInsert);
+
+          if (materialsError) throw materialsError;
+        }
+
         toast({
           title: "Success",
           description: "Project created successfully.",
@@ -479,6 +536,21 @@ const ProjectForm = () => {
 
           if (worksError) throw worksError;
         }
+      }
+
+      // Insert project materials
+      if (projectMaterials.length > 0) {
+        const materialsToInsert = projectMaterials.map(pm => ({
+          project_id: id,
+          material_id: pm.material_id,
+          quantity: pm.quantity,
+        }));
+
+        const { error: materialsError } = await supabase
+          .from("project_materials")
+          .insert(materialsToInsert);
+
+        if (materialsError) throw materialsError;
       }
 
       toast({
@@ -1111,6 +1183,82 @@ const ProjectForm = () => {
     doc.setDrawColor(180, 180, 180);
     doc.line(130, signatureY + 20, 190, signatureY + 20);
     
+    // === PRELIMINARY MATERIALS COST ===
+    if (projectMaterials.length > 0) {
+      yPosition = signatureY + 35;
+      
+      // Add new page if needed
+      if (yPosition > 200) {
+        doc.addPage();
+        yPosition = 25;
+      }
+      
+      // Materials section title
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("Preliminary Materials Cost", 20, yPosition);
+      yPosition += 10;
+      
+      // Materials table
+      const materialsData = projectMaterials.map(pm => {
+        const material = allMaterials.find(m => m.id === pm.material_id);
+        if (!material) return null;
+        const total = material.price_per_unit * pm.quantity;
+        return [
+          material.name,
+          material.unit_type,
+          `AED ${material.price_per_unit.toFixed(2)}`,
+          pm.quantity.toFixed(2),
+          `AED ${total.toFixed(2)}`
+        ];
+      }).filter(Boolean);
+      
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Material', 'Unit', 'Price/Unit', 'Quantity', 'Total']],
+        body: materialsData as any,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 10,
+        },
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+        },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { cellWidth: 20, halign: 'center' },
+          2: { cellWidth: 30, halign: 'right' },
+          3: { cellWidth: 30, halign: 'right' },
+          4: { cellWidth: 35, halign: 'right' },
+        },
+      });
+      
+      yPosition = (doc as any).lastAutoTable.finalY + 8;
+      
+      // Materials total
+      const materialsTotal = calculateMaterialsTotal();
+      doc.setFillColor(245, 247, 250);
+      doc.rect(120, yPosition, 70, 10, 'F');
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(20, 20, 20);
+      doc.text("Materials Total:", 125, yPosition + 6.5);
+      doc.text(`AED ${materialsTotal.toFixed(2)}`, 185, yPosition + 6.5, { align: "right" });
+      
+      yPosition += 18;
+      
+      // Disclaimer
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text("Note: Materials cost is preliminary and subject to change based on final selection and availability.", 20, yPosition);
+    }
+    
     // Save PDF
     doc.save(`Quotation_${quotationNumber}_${projectName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
     
@@ -1512,6 +1660,115 @@ const ProjectForm = () => {
                 })()}</span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Materials</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Add Material</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Search and add materials
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search materials..." />
+                    <CommandEmpty>No materials found.</CommandEmpty>
+                    <CommandList>
+                      <CommandGroup>
+                        {allMaterials
+                          .filter(m => !projectMaterials.some(pm => pm.material_id === m.id))
+                          .map((material) => (
+                          <CommandItem
+                            key={material.id}
+                            onSelect={() => addMaterial(material.id)}
+                          >
+                            <div className="flex justify-between w-full">
+                              <span>{material.name}</span>
+                              <span className="text-muted-foreground">
+                                AED {material.price_per_unit.toFixed(2)}/{material.unit_type}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {projectMaterials.length > 0 && (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead>Unit Type</TableHead>
+                      <TableHead>Price/Unit</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projectMaterials.map((pm) => {
+                      const material = allMaterials.find(m => m.id === pm.material_id);
+                      if (!material) return null;
+                      const total = material.price_per_unit * pm.quantity;
+                      return (
+                        <TableRow key={pm.material_id}>
+                          <TableCell>{material.name}</TableCell>
+                          <TableCell>{material.unit_type}</TableCell>
+                          <TableCell>AED {material.price_per_unit.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={pm.quantity}
+                              onChange={(e) => updateMaterialQuantity(pm.material_id, parseFloat(e.target.value) || 0)}
+                              className="w-24"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">AED {total.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeMaterial(pm.material_id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {projectMaterials.length > 0 && (
+              <div className="flex justify-between items-center text-xl font-bold pt-4 border-t">
+                <span>Preliminary Materials Total:</span>
+                <span>AED {calculateMaterialsTotal().toFixed(2)}</span>
+              </div>
+            )}
+
+            {projectMaterials.length === 0 && (
+              <p className="text-muted-foreground text-center py-8">
+                No materials added yet. Add materials to show preliminary cost.
+              </p>
+            )}
           </CardContent>
         </Card>
 
