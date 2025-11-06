@@ -820,7 +820,8 @@ const ProjectForm = () => {
         const tableData = works.map(work => {
           const roomWork = room.works.find(rw => rw.work_id === work.id);
           const quantity = roomWork?.quantity || 0;
-          const pricePerUnit = work.price_per_unit * priceMultiplier;
+          // Use override price if available, otherwise use original price with multiplier
+          const pricePerUnit = roomWork?.custom_price_per_unit ?? (work.price_per_unit * priceMultiplier);
           const total = pricePerUnit * quantity;
           
           return [
