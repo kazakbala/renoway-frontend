@@ -1,6 +1,20 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableCategory } from "@/components/SortableCategory";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +62,7 @@ import {
 interface Category {
   id: string;
   name: string;
+  display_order?: number;
 }
 
 interface RoomType {
@@ -70,6 +85,10 @@ interface Work {
 
 const Works = () => {
   const { toast } = useToast();
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor)
+  );
   const [works, setWorks] = useState<Work[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
@@ -102,7 +121,7 @@ const Works = () => {
   const loadData = async () => {
     const [worksRes, categoriesRes, roomTypesRes] = await Promise.all([
       supabase.from("works").select("*, categories(*)").order("display_order", { ascending: true }),
-      supabase.from("categories").select("*").order("name"),
+      supabase.from("categories").select("*").order("display_order", { ascending: true }),
       supabase.from("room_types").select("*").order("name"),
     ]);
 
@@ -288,6 +307,50 @@ const Works = () => {
       toast({ title: "Category deleted successfully" });
       loadData();
     }
+  };
+
+  const handleCategoryDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = categories.findIndex((cat) => cat.id === active.id);
+    const newIndex = categories.findIndex((cat) => cat.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Create new array with updated order
+    const reorderedCategories = [...categories];
+    const [movedCategory] = reorderedCategories.splice(oldIndex, 1);
+    reorderedCategories.splice(newIndex, 0, movedCategory);
+
+    // Update local state immediately for smooth UX
+    setCategories(reorderedCategories);
+
+    // Update display_order in database
+    const updates = reorderedCategories.map((cat, index) => ({
+      id: cat.id,
+      display_order: index,
+    }));
+
+    for (const update of updates) {
+      const { error } = await supabase
+        .from("categories")
+        .update({ display_order: update.display_order })
+        .eq("id", update.id);
+
+      if (error) {
+        toast({
+          title: "Error updating category order",
+          description: error.message,
+          variant: "destructive",
+        });
+        loadData(); // Reload to reset state on error
+        return;
+      }
+    }
+
+    toast({ title: "Category order updated" });
   };
 
   const handleDeleteRoomType = async (id: string) => {
@@ -530,16 +593,26 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
                   />
                   <Button onClick={handleAddCategory}>Add</Button>
                 </div>
-                <div className="space-y-2">
-                  {categories.map((cat) => (
-                    <div key={cat.id} className="flex items-center justify-between p-2 border rounded">
-                      <span>{cat.name}</span>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleCategoryDragEnd}
+                >
+                  <SortableContext
+                    items={categories.map((cat) => cat.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-2">
+                      {categories.map((cat) => (
+                        <SortableCategory
+                          key={cat.id}
+                          category={cat}
+                          onDelete={() => handleDeleteCategory(cat.id)}
+                        />
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             </DialogContent>
           </Dialog>

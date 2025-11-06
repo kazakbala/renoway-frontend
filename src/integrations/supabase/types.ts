@@ -17,18 +17,21 @@ export type Database = {
       categories: {
         Row: {
           created_at: string
+          display_order: number | null
           id: string
           name: string
           tenant_id: string | null
         }
         Insert: {
           created_at?: string
+          display_order?: number | null
           id?: string
           name: string
           tenant_id?: string | null
         }
         Update: {
           created_at?: string
+          display_order?: number | null
           id?: string
           name?: string
           tenant_id?: string | null
