@@ -49,6 +49,7 @@ interface RoomType {
 interface Category {
   id: string;
   name: string;
+  display_order?: number;
 }
 
 interface Work {
@@ -685,23 +686,52 @@ const ProjectForm = () => {
       doc.text(room.name, 22, yPosition);
       yPosition += 10;
       
-      // Works table with clean design
-      const tableData = roomWorks.map(work => {
-        const roomWork = room.works.find(rw => rw.work_id === work.id);
-        const quantity = roomWork?.quantity || 0;
-        const pricePerUnit = work.price_per_unit * priceMultiplier;
-        const total = pricePerUnit * quantity;
-        
-        return [
-          work.name,
-          quantity.toFixed(2),
-          work.unit_type,
-          `AED ${pricePerUnit.toFixed(2)}`,
-          `AED ${total.toFixed(2)}`
-        ];
-      });
+      // Group works by category and sort by display_order
+      const groupedWorks = roomWorks.reduce((acc, work) => {
+        const categoryName = work.categories?.name || "Uncategorized";
+        const categoryOrder = work.categories?.display_order ?? 999999;
+        if (!acc[categoryName]) {
+          acc[categoryName] = { works: [], order: categoryOrder };
+        }
+        acc[categoryName].works.push(work);
+        return acc;
+      }, {} as Record<string, { works: typeof roomWorks; order: number }>);
       
-      autoTable(doc, {
+      const sortedCategories = Object.entries(groupedWorks)
+        .sort(([, a], [, b]) => a.order - b.order);
+      
+      // Display works grouped by category
+      for (const [categoryName, { works }] of sortedCategories) {
+        // Check if we need a new page
+        if (yPosition > 240) {
+          doc.addPage();
+          yPosition = 25;
+        }
+        
+        // Category header
+        doc.setFontSize(10);
+        doc.setTextColor(80, 80, 80);
+        doc.setFont("helvetica", "bold");
+        doc.text(categoryName, 20, yPosition);
+        yPosition += 6;
+        
+        // Works table with clean design
+        const tableData = works.map(work => {
+          const roomWork = room.works.find(rw => rw.work_id === work.id);
+          const quantity = roomWork?.quantity || 0;
+          const pricePerUnit = work.price_per_unit * priceMultiplier;
+          const total = pricePerUnit * quantity;
+          
+          return [
+            work.name,
+            quantity.toFixed(2),
+            work.unit_type,
+            `AED ${pricePerUnit.toFixed(2)}`,
+            `AED ${total.toFixed(2)}`
+          ];
+        });
+        
+        autoTable(doc, {
         startY: yPosition,
         head: [["Description", "Units", "Type", "Price", "Amount"]],
         body: tableData,
@@ -735,9 +765,10 @@ const ProjectForm = () => {
             doc.setLineWidth(0.1);
           }
         }
-      });
-      
-      yPosition = (doc as any).lastAutoTable.finalY + 3;
+        });
+        
+        yPosition = (doc as any).lastAutoTable.finalY + 6;
+      }
       
       // Room subtotal with light background
       doc.setFillColor(250, 252, 255);
@@ -1210,14 +1241,17 @@ const ProjectForm = () => {
                               const worksForRoom = getWorksForRoom(room);
                               const groupedWorks = worksForRoom.reduce((acc, work) => {
                                 const categoryName = work.categories?.name || "Uncategorized";
+                                const categoryOrder = work.categories?.display_order ?? 999999;
                                 if (!acc[categoryName]) {
-                                  acc[categoryName] = [];
+                                  acc[categoryName] = { works: [], order: categoryOrder };
                                 }
-                                acc[categoryName].push(work);
+                                acc[categoryName].works.push(work);
                                 return acc;
-                              }, {} as Record<string, typeof worksForRoom>);
+                              }, {} as Record<string, { works: typeof worksForRoom; order: number }>);
 
-                              return Object.entries(groupedWorks).map(([categoryName, works]) => (
+                              return Object.entries(groupedWorks)
+                                .sort(([, a], [, b]) => a.order - b.order)
+                                .map(([categoryName, { works }]) => (
                                 <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg">
                                   <AccordionTrigger className="hover:no-underline px-4 py-2">
                                     <span className="font-semibold text-sm">{categoryName}</span>
