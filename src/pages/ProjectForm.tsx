@@ -779,7 +779,7 @@ const ProjectForm = () => {
       }
       
       // Room header with background
-      doc.setFillColor(245, 247, 250);
+      doc.setFillColor(117, 201, 245);
       doc.rect(20, yPosition - 5, 170, 8, 'F');
       doc.setFontSize(11);
       doc.setTextColor(30, 30, 30);
