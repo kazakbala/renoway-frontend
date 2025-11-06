@@ -18,12 +18,13 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Building2, Users, Wrench, LogOut, FolderKanban, UserCog, Settings } from "lucide-react";
+import { Building2, Users, Wrench, LogOut, FolderKanban, UserCog, Settings, Package } from "lucide-react";
 
 const navItems = [
   { path: "/dashboard", label: "Overview", icon: Building2 },
   { path: "/dashboard/clients", label: "Clients", icon: Users },
   { path: "/dashboard/works", label: "Works", icon: Wrench },
+  { path: "/dashboard/materials", label: "Materials", icon: Package },
   { path: "/dashboard/projects", label: "Projects", icon: FolderKanban },
   { path: "/dashboard/team", label: "Team", icon: UserCog },
   { path: "/dashboard/settings", label: "Company Settings", icon: Settings },

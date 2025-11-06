@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import Works from "./pages/Works";
+import Materials from "./pages/Materials";
 import Projects from "./pages/Projects";
 import ProjectForm from "./pages/ProjectForm";
 import Team from "./pages/Team";
@@ -56,6 +57,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="clients" element={<Clients />} />
               <Route path="works" element={<Works />} />
+              <Route path="materials" element={<Materials />} />
               <Route path="projects" element={<Projects />} />
               <Route path="projects/new" element={<ProjectForm />} />
               <Route path="projects/:id" element={<ProjectForm />} />

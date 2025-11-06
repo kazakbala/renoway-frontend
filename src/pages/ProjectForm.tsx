@@ -83,6 +83,20 @@ interface Room {
   room_types?: RoomType;
 }
 
+interface Material {
+  id: string;
+  name: string;
+  unit_type: string;
+  price_per_unit: number;
+}
+
+interface ProjectMaterial {
+  id?: string;
+  material_id: string;
+  quantity: number;
+  materials?: Material;
+}
+
 const ProjectForm = () => {
   const { id } = useParams();
   const { user } = useAuth();
@@ -101,6 +115,9 @@ const ProjectForm = () => {
   const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
   const [advancePaymentPercentage, setAdvancePaymentPercentage] = useState<number>(30);
   const [timelineCategories, setTimelineCategories] = useState<Array<{ id: string; name: string; days: number }>>([]);
+  const [allMaterials, setAllMaterials] = useState<Material[]>([]);
+  const [projectMaterials, setProjectMaterials] = useState<ProjectMaterial[]>([]);
+  const [materialSearch, setMaterialSearch] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -114,15 +131,17 @@ const ProjectForm = () => {
   }, [id]);
 
   const loadData = async () => {
-    const [clientsRes, roomTypesRes, worksRes] = await Promise.all([
+    const [clientsRes, roomTypesRes, worksRes, materialsRes] = await Promise.all([
       supabase.from("clients").select("*").order("full_name"),
       supabase.from("room_types").select("*").order("name"),
       supabase.from("works").select("*, work_room_types(room_type_id), categories(id, name, display_order)").order("display_order"),
+      supabase.from("materials").select("*").order("name"),
     ]);
 
     if (clientsRes.data) setClients(clientsRes.data);
     if (roomTypesRes.data) setRoomTypes(roomTypesRes.data);
     if (worksRes.data) setAllWorks(worksRes.data);
+    if (materialsRes.data) setAllMaterials(materialsRes.data);
 
     if (id) {
       const { data: project } = await supabase.from("projects").select("*").eq("id", id).single();
@@ -171,6 +190,16 @@ const ProjectForm = () => {
             }),
           );
           setRooms(roomsData);
+        }
+
+        // Load project materials
+        const { data: projMaterials } = await supabase
+          .from("project_materials")
+          .select("*, materials(*)")
+          .eq("project_id", id);
+
+        if (projMaterials) {
+          setProjectMaterials(projMaterials);
         }
       }
     }

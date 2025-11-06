@@ -125,6 +125,33 @@ export type Database = {
           },
         ]
       }
+      materials: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          price_per_unit: number
+          tenant_id: string | null
+          unit_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          price_per_unit: number
+          tenant_id?: string | null
+          unit_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          price_per_unit?: number
+          tenant_id?: string | null
+          unit_type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -156,6 +183,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      project_materials: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string
+          project_id: string
+          quantity: number
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id: string
+          project_id: string
+          quantity?: number
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string
+          project_id?: string
+          quantity?: number
+          tenant_id?: string | null
+        }
+        Relationships: []
       }
       project_room_works: {
         Row: {
