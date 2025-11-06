@@ -116,7 +116,7 @@ const ProjectForm = () => {
     const [clientsRes, roomTypesRes, worksRes] = await Promise.all([
       supabase.from("clients").select("*").order("full_name"),
       supabase.from("room_types").select("*").order("name"),
-      supabase.from("works").select("*, work_room_types(room_type_id), categories(id, name)"),
+      supabase.from("works").select("*, work_room_types(room_type_id), categories(id, name)").order("display_order"),
     ]);
 
     if (clientsRes.data) setClients(clientsRes.data);
