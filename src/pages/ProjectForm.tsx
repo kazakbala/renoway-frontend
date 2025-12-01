@@ -70,6 +70,7 @@ interface RoomWork {
   is_selected: boolean;
   quantity: number;
   custom_price_per_unit?: number | null;
+  custom_name?: string | null;
   work?: Work;
 }
 
@@ -163,7 +164,7 @@ const ProjectForm = () => {
             `
             *,
             room_types(id, name),
-            project_room_works(work_id, is_selected, quantity, custom_price_per_unit)
+            project_room_works(work_id, is_selected, quantity, custom_price_per_unit, custom_name)
           `,
           )
           .eq("project_id", id);
@@ -176,6 +177,7 @@ const ProjectForm = () => {
                 is_selected: w.is_selected,
                 quantity: w.quantity,
                 custom_price_per_unit: w.custom_price_per_unit,
+                custom_name: w.custom_name,
               }));
 
               return {
@@ -265,6 +267,7 @@ const ProjectForm = () => {
           is_selected: false,
           quantity: 0,
           custom_price_per_unit: null,
+          custom_name: null,
         })),
       };
     } else {
@@ -304,7 +307,7 @@ const ProjectForm = () => {
     }
   };
 
-  const updateRoomWork = (roomIndex: number, workId: string, field: "is_selected" | "quantity" | "custom_price_per_unit", value: any) => {
+  const updateRoomWork = (roomIndex: number, workId: string, field: "is_selected" | "quantity" | "custom_price_per_unit" | "custom_name", value: any) => {
     const newRooms = [...rooms];
     let workIndex = newRooms[roomIndex].works.findIndex((w) => w.work_id === workId);
 
@@ -315,6 +318,7 @@ const ProjectForm = () => {
         is_selected: false,
         quantity: 0,
         custom_price_per_unit: null,
+        custom_name: null,
       });
       workIndex = newRooms[roomIndex].works.length - 1;
     }
@@ -471,6 +475,7 @@ const ProjectForm = () => {
               is_selected: w.is_selected,
               quantity: w.quantity,
               custom_price_per_unit: w.custom_price_per_unit,
+              custom_name: w.custom_name,
             }));
 
           if (roomWorks.length > 0) {
@@ -529,6 +534,7 @@ const ProjectForm = () => {
             is_selected: w.is_selected,
             quantity: w.quantity,
             custom_price_per_unit: w.custom_price_per_unit,
+            custom_name: w.custom_name,
           }));
 
         if (roomWorks.length > 0) {
@@ -825,7 +831,7 @@ const ProjectForm = () => {
           const total = pricePerUnit * quantity;
           
           return [
-            work.name,
+            roomWork?.custom_name ?? work.name,
             quantity.toFixed(2),
             work.unit_type,
             `AED ${pricePerUnit.toFixed(2)}`,
@@ -1450,12 +1456,13 @@ const ProjectForm = () => {
                                         </TableHeader>
                                         <TableBody>
                                           {works.map((work) => {
-                                            const roomWork = work.roomWork || {
-                                              work_id: work.id,
-                                              is_selected: false,
-                                              quantity: 0,
-                                              custom_price_per_unit: null,
-                                            };
+                                             const roomWork = work.roomWork || {
+                                               work_id: work.id,
+                                               is_selected: false,
+                                               quantity: 0,
+                                               custom_price_per_unit: null,
+                                               custom_name: null,
+                                             };
                                             const effectivePrice = roomWork.custom_price_per_unit ?? (work.price_per_unit * priceMultiplier);
                                             return (
                                               <TableRow key={work.id}>
@@ -1467,7 +1474,22 @@ const ProjectForm = () => {
                                                     }
                                                   />
                                                 </TableCell>
-                                                <TableCell>{work.name}</TableCell>
+                                                <TableCell>
+                                                  <Input
+                                                    type="text"
+                                                    value={roomWork.custom_name ?? work.name}
+                                                    onChange={(e) =>
+                                                      updateRoomWork(
+                                                        roomIndex,
+                                                        work.id,
+                                                        "custom_name",
+                                                        e.target.value || null,
+                                                      )
+                                                    }
+                                                    className="w-full"
+                                                    placeholder={work.name}
+                                                  />
+                                                </TableCell>
                                                 <TableCell>
                                                   <span className="text-muted-foreground text-sm">
                                                     AED {(work.price_per_unit * priceMultiplier).toFixed(2)}
