@@ -13,6 +13,7 @@ import Projects from "./pages/Projects";
 import ProjectForm from "./pages/ProjectForm";
 import Team from "./pages/Team";
 import CompanySettings from "./pages/CompanySettings";
+import Meetings from "./pages/Meetings";
 import DashboardLayout from "@/components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="projects/:id" element={<ProjectForm />} />
               <Route path="team" element={<Team />} />
               <Route path="settings" element={<CompanySettings />} />
+              <Route path="meetings" element={<Meetings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
