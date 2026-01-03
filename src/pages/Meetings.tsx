@@ -27,7 +27,7 @@ const Meetings = () => {
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="outline" onClick={goToToday}>
-            Сьогодні
+            Today
           </Button>
         </div>
         <h2 className="text-lg font-semibold">
