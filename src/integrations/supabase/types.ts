@@ -152,6 +152,76 @@ export type Database = {
         }
         Relationships: []
       }
+      meetings: {
+        Row: {
+          assigned_to: string
+          created_at: string
+          created_by: string
+          end_time: string
+          id: string
+          location: string | null
+          location_link: string | null
+          notes: string | null
+          start_time: string
+          tenant_id: string | null
+          title: string
+          type: Database["public"]["Enums"]["meeting_type"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_to: string
+          created_at?: string
+          created_by: string
+          end_time: string
+          id?: string
+          location?: string | null
+          location_link?: string | null
+          notes?: string | null
+          start_time: string
+          tenant_id?: string | null
+          title: string
+          type?: Database["public"]["Enums"]["meeting_type"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string
+          created_at?: string
+          created_by?: string
+          end_time?: string
+          id?: string
+          location?: string | null
+          location_link?: string | null
+          notes?: string | null
+          start_time?: string
+          tenant_id?: string | null
+          title?: string
+          type?: Database["public"]["Enums"]["meeting_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -576,7 +646,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      meeting_type: "online" | "offline"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -703,6 +773,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      meeting_type: ["online", "offline"],
+    },
   },
 } as const
