@@ -18,7 +18,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Building2, Users, Wrench, LogOut, FolderKanban, UserCog, Settings, Package } from "lucide-react";
+import { Building2, Users, Wrench, LogOut, FolderKanban, UserCog, Settings, Package, CalendarDays } from "lucide-react";
 
 const navItems = [
   { path: "/dashboard", label: "Overview", icon: Building2 },
@@ -26,6 +26,7 @@ const navItems = [
   { path: "/dashboard/works", label: "Works", icon: Wrench },
   { path: "/dashboard/materials", label: "Materials", icon: Package },
   { path: "/dashboard/projects", label: "Projects", icon: FolderKanban },
+  { path: "/dashboard/meetings", label: "Meetings", icon: CalendarDays },
   { path: "/dashboard/team", label: "Team", icon: UserCog },
   { path: "/dashboard/settings", label: "Company Settings", icon: Settings },
 ];
