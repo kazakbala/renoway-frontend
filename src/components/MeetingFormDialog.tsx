@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format } from "date-fns";
-import { CalendarIcon, MapPin, Link, Video, Building } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { CalendarIcon, MapPin, Link, Video, Building, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,11 +65,24 @@ const meetingFormSchema = z.object({
 
 type MeetingFormValues = z.infer<typeof meetingFormSchema>;
 
+export interface MeetingData {
+  id: string;
+  title: string;
+  assigned_to: string;
+  type: "online" | "offline";
+  location: string | null;
+  location_link: string | null;
+  start_time: string;
+  end_time: string;
+  notes: string | null;
+}
+
 interface MeetingFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultDate?: Date;
   defaultHour?: number;
+  meeting?: MeetingData | null;
   onSuccess?: () => void;
 }
 
@@ -67,9 +91,12 @@ export function MeetingFormDialog({
   onOpenChange,
   defaultDate,
   defaultHour,
+  meeting,
   onSuccess,
 }: MeetingFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const isEditMode = !!meeting;
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles"],
@@ -82,9 +109,24 @@ export function MeetingFormDialog({
     },
   });
 
-  const form = useForm<MeetingFormValues>({
-    resolver: zodResolver(meetingFormSchema),
-    defaultValues: {
+  const getDefaultValues = (): MeetingFormValues => {
+    if (meeting) {
+      const startDate = parseISO(meeting.start_time);
+      const endDate = parseISO(meeting.end_time);
+      return {
+        title: meeting.title,
+        assigned_to: meeting.assigned_to,
+        type: meeting.type,
+        location: meeting.location || "",
+        location_link: meeting.location_link || "",
+        start_date: startDate,
+        start_time: format(startDate, "HH:mm"),
+        end_date: endDate,
+        end_time: format(endDate, "HH:mm"),
+        notes: meeting.notes || "",
+      };
+    }
+    return {
       title: "",
       assigned_to: "",
       type: "offline",
@@ -95,31 +137,25 @@ export function MeetingFormDialog({
       end_date: defaultDate || new Date(),
       end_time: defaultHour ? `${String(defaultHour + 1).padStart(2, "0")}:00` : "10:00",
       notes: "",
-    },
+    };
+  };
+
+  const form = useForm<MeetingFormValues>({
+    resolver: zodResolver(meetingFormSchema),
+    defaultValues: getDefaultValues(),
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset(getDefaultValues());
+    }
+  }, [open, meeting]);
 
   const meetingType = form.watch("type");
 
   const onSubmit = async (values: MeetingFormValues) => {
     setIsSubmitting(true);
     try {
-      const { data: currentUser } = await supabase.auth.getUser();
-      if (!currentUser.user) {
-        toast.error("You must be logged in to create a meeting");
-        return;
-      }
-
-      const { data: currentProfile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", currentUser.user.id)
-        .single();
-
-      if (!currentProfile) {
-        toast.error("Profile not found");
-        return;
-      }
-
       const startDateTime = new Date(values.start_date);
       const [startHours, startMinutes] = values.start_time.split(":");
       startDateTime.setHours(parseInt(startHours), parseInt(startMinutes), 0, 0);
@@ -128,9 +164,8 @@ export function MeetingFormDialog({
       const [endHours, endMinutes] = values.end_time.split(":");
       endDateTime.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
 
-      const { error } = await supabase.from("meetings").insert({
+      const meetingData = {
         title: values.title,
-        created_by: currentProfile.id,
         assigned_to: values.assigned_to,
         type: values.type,
         location: values.location || null,
@@ -138,18 +173,70 @@ export function MeetingFormDialog({
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
         notes: values.notes || null,
-      });
+      };
 
-      if (error) throw error;
+      if (isEditMode && meeting) {
+        const { error } = await supabase
+          .from("meetings")
+          .update(meetingData)
+          .eq("id", meeting.id);
 
-      toast.success("Meeting created successfully");
+        if (error) throw error;
+        toast.success("Meeting updated successfully");
+      } else {
+        const { data: currentUser } = await supabase.auth.getUser();
+        if (!currentUser.user) {
+          toast.error("You must be logged in to create a meeting");
+          return;
+        }
+
+        const { data: currentProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", currentUser.user.id)
+          .single();
+
+        if (!currentProfile) {
+          toast.error("Profile not found");
+          return;
+        }
+
+        const { error } = await supabase.from("meetings").insert({
+          ...meetingData,
+          created_by: currentProfile.id,
+        });
+
+        if (error) throw error;
+        toast.success("Meeting created successfully");
+      }
+
       form.reset();
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
-      toast.error(error.message || "Failed to create meeting");
+      toast.error(error.message || `Failed to ${isEditMode ? "update" : "create"} meeting`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!meeting) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("meetings")
+        .delete()
+        .eq("id", meeting.id);
+
+      if (error) throw error;
+      toast.success("Meeting deleted successfully");
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete meeting");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -157,7 +244,7 @@ export function MeetingFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Meeting</DialogTitle>
+          <DialogTitle>{isEditMode ? "Edit Meeting" : "Create Meeting"}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -414,17 +501,43 @@ export function MeetingFormDialog({
               )}
             />
 
-            <div className="flex justify-end gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Meeting"}
-              </Button>
+            <div className="flex justify-between pt-4">
+              {isEditMode ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive" disabled={isDeleting}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Meeting</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this meeting? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Meeting" : "Create Meeting")}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>

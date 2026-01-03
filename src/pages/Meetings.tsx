@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Video, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, parseISO } from "date-fns";
-import { MeetingFormDialog } from "@/components/MeetingFormDialog";
+import { MeetingFormDialog, MeetingData } from "@/components/MeetingFormDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -15,6 +15,9 @@ interface Meeting {
   end_time: string;
   type: "online" | "offline";
   assigned_to: string;
+  location: string | null;
+  location_link: string | null;
+  notes: string | null;
   assigned_profile: { email: string | null } | null;
 }
 
@@ -22,6 +25,7 @@ const Meetings = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ date: Date; hour: number } | null>(null);
+  const [selectedMeeting, setSelectedMeeting] = useState<MeetingData | null>(null);
   
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = addDays(weekStart, 6);
@@ -39,6 +43,9 @@ const Meetings = () => {
           end_time,
           type,
           assigned_to,
+          location,
+          location_link,
+          notes,
           assigned_profile:profiles!meetings_assigned_to_fkey(email)
         `)
         .gte("start_time", weekStart.toISOString())
@@ -54,12 +61,31 @@ const Meetings = () => {
   const goToToday = () => setCurrentDate(new Date());
 
   const handleSlotClick = (day: Date, hour: number) => {
+    setSelectedMeeting(null);
     setSelectedSlot({ date: day, hour });
     setDialogOpen(true);
   };
 
   const handleCreateMeeting = () => {
+    setSelectedMeeting(null);
     setSelectedSlot(null);
+    setDialogOpen(true);
+  };
+
+  const handleMeetingClick = (meeting: Meeting, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedSlot(null);
+    setSelectedMeeting({
+      id: meeting.id,
+      title: meeting.title,
+      assigned_to: meeting.assigned_to,
+      type: meeting.type,
+      location: meeting.location,
+      location_link: meeting.location_link,
+      start_time: meeting.start_time,
+      end_time: meeting.end_time,
+      notes: meeting.notes,
+    });
     setDialogOpen(true);
   };
 
@@ -154,12 +180,12 @@ const Meetings = () => {
                       <div
                         key={meeting.id}
                         style={getMeetingStyle(meeting)}
-                        className={`absolute inset-x-0.5 top-0 rounded-md p-1 text-xs overflow-hidden z-10 ${
+                        className={`absolute inset-x-0.5 top-0 rounded-md p-1 text-xs overflow-hidden z-10 cursor-pointer hover:opacity-90 ${
                           meeting.type === "online"
                             ? "bg-blue-500/90 text-white"
                             : "bg-green-500/90 text-white"
                         }`}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => handleMeetingClick(meeting, e)}
                       >
                         <div className="flex items-center gap-1 font-medium truncate">
                           {meeting.type === "online" ? (
@@ -192,6 +218,7 @@ const Meetings = () => {
         onOpenChange={setDialogOpen}
         defaultDate={selectedSlot?.date}
         defaultHour={selectedSlot?.hour}
+        meeting={selectedMeeting}
         onSuccess={refetch}
       />
     </div>
