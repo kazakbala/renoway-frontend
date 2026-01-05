@@ -890,24 +890,24 @@ const ProjectForm = () => {
       yPosition += 12;
     }
     
-    // === ROOMS SUMMARY SECTION ===
+    // === SUMMARY SECTION ===
     
-    // Add new page if needed for rooms summary
-    if (yPosition > 200) {
+    // Add new page if needed for summary
+    if (yPosition > 220) {
       doc.addPage();
       yPosition = 25;
     }
     
-    yPosition += 5;
+    yPosition += 8;
     
-    // Section header
-    doc.setFillColor(240, 240, 245);
-    doc.rect(20, yPosition - 5, 170, 8, 'F');
-    doc.setFontSize(11);
-    doc.setTextColor(30, 30, 30);
+    // Section header - minimal modern style
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
     doc.setFont("helvetica", "bold");
-    doc.text("Rooms Summary", 22, yPosition);
-    yPosition += 10;
+    doc.text("SUMMARY", 20, yPosition);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, yPosition + 2, 190, yPosition + 2);
+    yPosition += 8;
     
     // Create rooms summary table data
     const roomsSummaryData = rooms
@@ -925,31 +925,22 @@ const ProjectForm = () => {
     if (roomsSummaryData.length > 0) {
       autoTable(doc, {
         startY: yPosition,
-        head: [["Room", "Total"]],
         body: roomsSummaryData,
         theme: "plain",
-        headStyles: { 
-          fillColor: [250, 250, 250],
-          textColor: [60, 60, 60],
-          fontStyle: "bold",
-          fontSize: 10,
-          lineWidth: 0,
-          lineColor: [220, 220, 220]
-        },
         styles: { 
-          fontSize: 10,
-          cellPadding: 4,
+          fontSize: 9,
+          cellPadding: 2,
           font: "helvetica",
-          textColor: [60, 60, 60]
+          textColor: [70, 70, 70]
         },
         columnStyles: {
-          0: { cellWidth: 120 },
-          1: { cellWidth: 50, halign: "right", fontStyle: "bold" }
+          0: { cellWidth: 130 },
+          1: { cellWidth: 40, halign: "right", fontStyle: "bold", textColor: [40, 40, 40] }
         },
         margin: { left: 20, right: 20 }
       });
       
-      yPosition = (doc as any).lastAutoTable.finalY + 8;
+      yPosition = (doc as any).lastAutoTable.finalY + 6;
     }
     
     // === FINANCIAL SUMMARY ===
