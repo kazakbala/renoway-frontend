@@ -890,6 +890,68 @@ const ProjectForm = () => {
       yPosition += 12;
     }
     
+    // === ROOMS SUMMARY SECTION ===
+    
+    // Add new page if needed for rooms summary
+    if (yPosition > 200) {
+      doc.addPage();
+      yPosition = 25;
+    }
+    
+    yPosition += 5;
+    
+    // Section header
+    doc.setFillColor(240, 240, 245);
+    doc.rect(20, yPosition - 5, 170, 8, 'F');
+    doc.setFontSize(11);
+    doc.setTextColor(30, 30, 30);
+    doc.setFont("helvetica", "bold");
+    doc.text("Rooms Summary", 22, yPosition);
+    yPosition += 10;
+    
+    // Create rooms summary table data
+    const roomsSummaryData = rooms
+      .filter(room => {
+        const roomWorks = getWorksForRoom(room).filter(work => 
+          room.works.find(rw => rw.work_id === work.id && rw.is_selected)
+        );
+        return roomWorks.length > 0;
+      })
+      .map(room => {
+        const subtotal = calculateRoomSubtotal(room);
+        return [room.name, `AED ${subtotal.toFixed(2)}`];
+      });
+    
+    if (roomsSummaryData.length > 0) {
+      autoTable(doc, {
+        startY: yPosition,
+        head: [["Room", "Total"]],
+        body: roomsSummaryData,
+        theme: "plain",
+        headStyles: { 
+          fillColor: [250, 250, 250],
+          textColor: [60, 60, 60],
+          fontStyle: "bold",
+          fontSize: 10,
+          lineWidth: 0,
+          lineColor: [220, 220, 220]
+        },
+        styles: { 
+          fontSize: 10,
+          cellPadding: 4,
+          font: "helvetica",
+          textColor: [60, 60, 60]
+        },
+        columnStyles: {
+          0: { cellWidth: 120 },
+          1: { cellWidth: 50, halign: "right", fontStyle: "bold" }
+        },
+        margin: { left: 20, right: 20 }
+      });
+      
+      yPosition = (doc as any).lastAutoTable.finalY + 8;
+    }
+    
     // === FINANCIAL SUMMARY ===
     
     // Add new page if needed for summary
