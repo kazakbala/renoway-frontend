@@ -176,35 +176,45 @@ const Meetings = () => {
                         : ""
                     }`}
                   >
-                    {slotMeetings.map((meeting) => (
-                      <div
-                        key={meeting.id}
-                        style={getMeetingStyle(meeting)}
-                        className={`absolute inset-x-0.5 top-0 rounded-md p-1 text-xs overflow-hidden z-10 cursor-pointer hover:opacity-90 ${
-                          meeting.type === "online"
-                            ? "bg-blue-500/90 text-white"
-                            : "bg-green-500/90 text-white"
-                        }`}
-                        onClick={(e) => handleMeetingClick(meeting, e)}
-                      >
-                        <div className="flex items-center gap-1 font-medium truncate">
-                          {meeting.type === "online" ? (
-                            <Video className="h-3 w-3 shrink-0" />
-                          ) : (
-                            <Building className="h-3 w-3 shrink-0" />
-                          )}
-                          <span className="truncate">{meeting.title}</span>
-                        </div>
-                        <div className="text-[10px] opacity-80 truncate">
-                          {format(parseISO(meeting.start_time), "HH:mm")} - {format(parseISO(meeting.end_time), "HH:mm")}
-                        </div>
-                        {meeting.assigned_profile?.email && (
-                          <div className="text-[10px] opacity-80 truncate">
-                            {meeting.assigned_profile.email}
+                    {slotMeetings.map((meeting, index) => {
+                      const totalOverlapping = slotMeetings.length;
+                      const width = totalOverlapping > 1 ? `calc(${100 / totalOverlapping}% - 2px)` : 'calc(100% - 4px)';
+                      const left = totalOverlapping > 1 ? `calc(${(index * 100) / totalOverlapping}% + 1px)` : '2px';
+                      
+                      return (
+                        <div
+                          key={meeting.id}
+                          style={{
+                            ...getMeetingStyle(meeting),
+                            width,
+                            left,
+                          }}
+                          className={`absolute top-0 rounded-md p-1 text-xs overflow-hidden z-10 cursor-pointer hover:opacity-90 ${
+                            meeting.type === "online"
+                              ? "bg-blue-500/90 text-white"
+                              : "bg-green-500/90 text-white"
+                          }`}
+                          onClick={(e) => handleMeetingClick(meeting, e)}
+                        >
+                          <div className="flex items-center gap-1 font-medium truncate">
+                            {meeting.type === "online" ? (
+                              <Video className="h-3 w-3 shrink-0" />
+                            ) : (
+                              <Building className="h-3 w-3 shrink-0" />
+                            )}
+                            <span className="truncate">{meeting.title}</span>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          <div className="text-[10px] opacity-80 truncate">
+                            {format(parseISO(meeting.start_time), "HH:mm")} - {format(parseISO(meeting.end_time), "HH:mm")}
+                          </div>
+                          {meeting.assigned_profile?.email && (
+                            <div className="text-[10px] opacity-80 truncate">
+                              {meeting.assigned_profile.email}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
