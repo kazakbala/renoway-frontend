@@ -23,10 +23,10 @@ interface MeetingLocationMapProps {
 export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocationMapProps) {
   if (!apiKey) return null;
   const [searchQuery, setSearchQuery] = useState("");
-  const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [markerPosition, setMarkerPosition] = useState<google.maps.LatLngLiteral | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: apiKey,
@@ -45,8 +45,11 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
         if (place?.geometry?.location) {
           const lat = place.geometry.location.lat();
           const lng = place.geometry.location.lng();
-          setMapCenter({ lat, lng });
-          setMarkerPosition({ lat, lng });
+          const position = { lat, lng };
+          
+          setMarkerPosition(position);
+          mapRef.current?.panTo(position);
+          mapRef.current?.setZoom(15);
           
           const address = place.formatted_address || place.name || "";
           const link = place.url || `https://www.google.com/maps?q=${lat},${lng}`;
@@ -67,11 +70,13 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
     if (e.latLng) {
       const lat = e.latLng.lat();
       const lng = e.latLng.lng();
-      setMarkerPosition({ lat, lng });
+      const position = { lat, lng };
+      setMarkerPosition(position);
+      mapRef.current?.panTo(position);
       
       // Reverse geocode to get address
       const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      geocoder.geocode({ location: position }, (results, status) => {
         if (status === "OK" && results?.[0]) {
           onLocationSelect(
             results[0].formatted_address,
@@ -81,6 +86,10 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
       });
     }
   }, [onLocationSelect]);
+
+  const onMapLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+  }, []);
 
   if (!isLoaded) {
     return (
@@ -118,9 +127,10 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
       <div className="flex-1 min-h-[400px] h-full rounded-lg overflow-hidden border">
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
-          center={mapCenter}
+          center={defaultCenter}
           zoom={13}
           onClick={onMapClick}
+          onLoad={onMapLoad}
           options={{
             streetViewControl: false,
             mapTypeControl: false,
