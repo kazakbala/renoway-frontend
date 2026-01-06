@@ -21,6 +21,7 @@ interface MeetingLocationMapProps {
 }
 
 export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocationMapProps) {
+  if (!apiKey) return null;
   const [searchQuery, setSearchQuery] = useState("");
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [markerPosition, setMarkerPosition] = useState<google.maps.LatLngLiteral | null>(null);
@@ -103,7 +104,7 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
   }
 
   return (
-    <div className="w-full flex flex-col gap-3">
+    <div className="w-full h-full flex flex-col gap-3">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -114,7 +115,7 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
-      <div className="flex-1 min-h-[400px] rounded-lg overflow-hidden border">
+      <div className="flex-1 min-h-[400px] h-full rounded-lg overflow-hidden border">
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
           center={mapCenter}

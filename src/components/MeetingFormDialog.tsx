@@ -564,10 +564,10 @@ export function MeetingFormDialog({
 
           {/* Right side - Map */}
           {showMap && (
-            <div className="w-1/2">
-              <MeetingLocationMap 
-                apiKey={apiKey} 
-                onLocationSelect={handleLocationSelect} 
+            <div className="w-1/2 min-h-[500px]">
+              <MeetingLocationMap
+                apiKey={apiKey}
+                onLocationSelect={handleLocationSelect}
               />
             </div>
           )}
