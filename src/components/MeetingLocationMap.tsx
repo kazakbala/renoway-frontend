@@ -11,8 +11,8 @@ const mapContainerStyle = {
 };
 
 const defaultCenter = {
-  lat: 40.7128,
-  lng: -74.006,
+  lat: 25.2048,  // Dubai, UAE
+  lng: 55.2708,
 };
 
 interface MeetingLocationMapProps {
@@ -38,6 +38,7 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
     if (isLoaded && searchInputRef.current && !autocompleteRef.current) {
       autocompleteRef.current = new google.maps.places.Autocomplete(searchInputRef.current, {
         types: ["establishment", "geocode"],
+        componentRestrictions: { country: "ae" },
       });
 
       autocompleteRef.current.addListener("place_changed", () => {
