@@ -255,10 +255,19 @@ export function MeetingFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(
-        "max-h-[90vh] overflow-y-auto",
-        showMap ? "max-w-4xl" : "max-w-lg"
-      )}>
+      <DialogContent 
+        className={cn(
+          "max-h-[90vh] overflow-y-auto",
+          showMap ? "max-w-4xl" : "max-w-lg"
+        )}
+        onInteractOutside={(e) => {
+          // Prevent closing when clicking on Google Places autocomplete
+          const target = e.target as HTMLElement;
+          if (target.closest('.pac-container')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Edit Meeting" : "Create Meeting"}</DialogTitle>
         </DialogHeader>
