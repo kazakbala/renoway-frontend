@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, parseISO } from "date-fns";
-import { CalendarIcon, MapPin, Link, Video, Building, Trash2, Search, Loader2 } from "lucide-react";
-import { GoogleMap, useJsApiLoader, Marker } from "@react-google-maps/api";
+import { CalendarIcon, MapPin, Link, Video, Building, Trash2, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useGoogleMapsApi } from "@/hooks/useGoogleMapsApi";
+import { MeetingLocationMap } from "@/components/MeetingLocationMap";
 
 const meetingFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -88,18 +88,6 @@ interface MeetingFormDialogProps {
   onSuccess?: () => void;
 }
 
-const libraries: ("places")[] = ["places"];
-
-const mapContainerStyle = {
-  width: "100%",
-  height: "100%",
-};
-
-const defaultCenter = {
-  lat: 40.7128,
-  lng: -74.006,
-};
-
 export function MeetingFormDialog({
   open,
   onOpenChange,
@@ -110,19 +98,9 @@ export function MeetingFormDialog({
 }: MeetingFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [mapCenter, setMapCenter] = useState(defaultCenter);
-  const [markerPosition, setMarkerPosition] = useState<google.maps.LatLngLiteral | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const isEditMode = !!meeting;
 
   const { apiKey, isLoading: isLoadingApiKey, error: apiKeyError } = useGoogleMapsApi();
-
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: apiKey || "",
-    libraries,
-  });
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles"],
@@ -174,61 +152,15 @@ export function MeetingFormDialog({
   useEffect(() => {
     if (open) {
       form.reset(getDefaultValues());
-      setMarkerPosition(null);
-      setSearchQuery("");
     }
   }, [open, meeting]);
 
   const meetingType = form.watch("type");
 
-  // Initialize autocomplete when map is loaded
-  useEffect(() => {
-    if (isLoaded && searchInputRef.current && !autocompleteRef.current && meetingType === "offline") {
-      autocompleteRef.current = new google.maps.places.Autocomplete(searchInputRef.current, {
-        types: ["establishment", "geocode"],
-      });
-
-      autocompleteRef.current.addListener("place_changed", () => {
-        const place = autocompleteRef.current?.getPlace();
-        if (place?.geometry?.location) {
-          const lat = place.geometry.location.lat();
-          const lng = place.geometry.location.lng();
-          setMapCenter({ lat, lng });
-          setMarkerPosition({ lat, lng });
-          
-          // Update form fields
-          form.setValue("location", place.formatted_address || place.name || "");
-          if (place.url) {
-            form.setValue("location_link", place.url);
-          }
-        }
-      });
-    }
-
-    return () => {
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
-        autocompleteRef.current = null;
-      }
-    };
-  }, [isLoaded, meetingType, form]);
-
-  const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
-    if (e.latLng) {
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      setMarkerPosition({ lat, lng });
-      
-      // Reverse geocode to get address
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-        if (status === "OK" && results?.[0]) {
-          form.setValue("location", results[0].formatted_address);
-          form.setValue("location_link", `https://www.google.com/maps?q=${lat},${lng}`);
-        }
-      });
-    }
-  }, [form]);
+  const handleLocationSelect = (location: string, link: string) => {
+    form.setValue("location", location);
+    form.setValue("location_link", link);
+  };
 
   const onSubmit = async (values: MeetingFormValues) => {
     setIsSubmitting(true);
@@ -319,7 +251,7 @@ export function MeetingFormDialog({
     }
   };
 
-  const showMap = meetingType === "offline" && isLoaded && apiKey;
+  const showMap = meetingType === "offline" && apiKey && !apiKeyError;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -632,35 +564,11 @@ export function MeetingFormDialog({
 
           {/* Right side - Map */}
           {showMap && (
-            <div className="w-1/2 flex flex-col gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  ref={searchInputRef}
-                  placeholder="Search for a location..."
-                  className="pl-10"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <div className="flex-1 min-h-[400px] rounded-lg overflow-hidden border">
-                <GoogleMap
-                  mapContainerStyle={mapContainerStyle}
-                  center={mapCenter}
-                  zoom={13}
-                  onClick={onMapClick}
-                  options={{
-                    streetViewControl: false,
-                    mapTypeControl: false,
-                    fullscreenControl: false,
-                  }}
-                >
-                  {markerPosition && <Marker position={markerPosition} />}
-                </GoogleMap>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Search for a place or click on the map to select a location
-              </p>
+            <div className="w-1/2">
+              <MeetingLocationMap 
+                apiKey={apiKey} 
+                onLocationSelect={handleLocationSelect} 
+              />
             </div>
           )}
 
