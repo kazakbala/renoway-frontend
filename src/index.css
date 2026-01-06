@@ -97,3 +97,9 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Google Maps Autocomplete dropdown z-index fix */
+.pac-container {
+  z-index: 10000 !important;
+  pointer-events: auto;
+}
