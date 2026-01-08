@@ -31,6 +31,7 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: apiKey,
     libraries,
+    language: "en",
   });
 
   // Initialize autocomplete when map is loaded
