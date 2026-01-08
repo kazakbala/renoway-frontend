@@ -157,8 +157,7 @@ export function MeetingFormDialog({
 
   const meetingType = form.watch("type");
 
-  const handleLocationSelect = (location: string, link: string) => {
-    form.setValue("location", location);
+  const handleLocationSelect = (_location: string, link: string) => {
     form.setValue("location_link", link);
   };
 
