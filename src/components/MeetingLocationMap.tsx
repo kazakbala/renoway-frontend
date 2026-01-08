@@ -116,7 +116,7 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
             disabled
           />
         </div>
-        <div className="flex-1 min-h-[400px] rounded-lg overflow-hidden border flex items-center justify-center">
+        <div className="h-[320px] md:h-[420px] rounded-lg overflow-hidden border flex items-center justify-center">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading map...
@@ -127,7 +127,7 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
   }
 
   return (
-    <div className="w-full h-full flex flex-col gap-3">
+    <div className="w-full flex flex-col gap-3">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -138,7 +138,7 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
-      <div className="flex-1 min-h-[400px] h-full rounded-lg overflow-hidden border">
+      <div className="h-[320px] md:h-[420px] rounded-lg overflow-hidden border">
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
           center={defaultCenter}
