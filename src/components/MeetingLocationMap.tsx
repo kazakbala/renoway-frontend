@@ -53,7 +53,19 @@ export function MeetingLocationMap({ apiKey, onLocationSelect }: MeetingLocation
           mapRef.current?.panTo(position);
           mapRef.current?.setZoom(15);
           
-          const address = place.formatted_address || place.name || "";
+          // Extract address components
+          const getComponent = (type: string) => 
+            place.address_components?.find(c => c.types.includes(type))?.long_name || "";
+          
+          const name = place.name || "";
+          const locality = getComponent("locality") || getComponent("sublocality_level_1");
+          const emirate = getComponent("administrative_area_level_1");
+          const country = getComponent("country");
+          
+          // Format: name, locality, emirate, country (filter out empty values)
+          const addressParts = [name, locality, emirate, country].filter(Boolean);
+          const address = addressParts.join(", ");
+          
           const link = place.url || `https://www.google.com/maps?q=${lat},${lng}`;
           onLocationSelect(address, link);
         }
