@@ -351,7 +351,7 @@ export function MeetingFormDialog({
             {meetingType === "offline" && (
               <div className="space-y-4">
                 {showMap && (
-                  <div className="min-h-[300px] rounded-lg overflow-hidden border">
+                  <div className="rounded-lg overflow-hidden">
                     <MeetingLocationMap
                       apiKey={apiKey}
                       onLocationSelect={handleLocationSelect}
@@ -360,7 +360,7 @@ export function MeetingFormDialog({
                 )}
 
                 {isLoadingApiKey && (
-                  <div className="flex items-center justify-center min-h-[200px] border rounded-lg">
+                  <div className="flex items-center justify-center h-[320px] md:h-[420px] border rounded-lg">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading map...
