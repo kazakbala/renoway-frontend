@@ -272,332 +272,340 @@ export function MeetingFormDialog({
           <DialogTitle>{isEditMode ? "Edit Meeting" : "Create Meeting"}</DialogTitle>
         </DialogHeader>
 
-        <div className={cn("flex gap-6", showMap ? "flex-row" : "flex-col")}>
-          {/* Left side - Form */}
-          <div className={cn(showMap ? "w-1/2" : "w-full")}>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Meeting title" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Title */}
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Meeting title" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="assigned_to"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Assigned To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a team member" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {profiles?.map((profile) => (
-                            <SelectItem key={profile.id} value={profile.id}>
-                              {profile.email}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            {/* Assigned To */}
+            <FormField
+              control={form.control}
+              name="assigned_to"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Assigned To</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a team member" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {profiles?.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Meeting Type</FormLabel>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant={field.value === "offline" ? "default" : "outline"}
-                          className="flex-1"
-                          onClick={() => field.onChange("offline")}
-                        >
-                          <Building className="mr-2 h-4 w-4" />
-                          Offline
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={field.value === "online" ? "default" : "outline"}
-                          className="flex-1"
-                          onClick={() => field.onChange("online")}
-                        >
-                          <Video className="mr-2 h-4 w-4" />
-                          Online
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {meetingType === "online" ? "Meeting Link" : "Location"}
-                      </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          {meetingType === "online" ? (
-                            <Video className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          )}
-                          <Input
-                            placeholder={
-                              meetingType === "online"
-                                ? "https://meet.google.com/..."
-                                : "Office address"
-                            }
-                            className="pl-10"
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {meetingType === "offline" && (
-                  <FormField
-                    control={form.control}
-                    name="location_link"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Google Maps Link</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              placeholder="https://maps.google.com/..."
-                              className="pl-10"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="start_date"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Start Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  "pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="start_time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Start Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="end_date"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>End Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  "pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="end_time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>End Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Additional notes about the meeting..."
-                          rows={3}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-between pt-4">
-                  {isEditMode ? (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button type="button" variant="destructive" disabled={isDeleting}>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Meeting</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete this meeting? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  ) : (
-                    <div />
-                  )}
+            {/* Meeting Type */}
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Meeting Type</FormLabel>
                   <div className="flex gap-2">
                     <Button
                       type="button"
-                      variant="outline"
-                      onClick={() => onOpenChange(false)}
+                      variant={field.value === "offline" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => field.onChange("offline")}
                     >
-                      Cancel
+                      <Building className="mr-2 h-4 w-4" />
+                      Offline
                     </Button>
-                    <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Meeting" : "Create Meeting")}
+                    <Button
+                      type="button"
+                      variant={field.value === "online" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => field.onChange("online")}
+                    >
+                      <Video className="mr-2 h-4 w-4" />
+                      Online
                     </Button>
                   </div>
-                </div>
-              </form>
-            </Form>
-          </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          {/* Right side - Map */}
-          {showMap && (
-            <div className="w-1/2 min-h-[500px]">
-              <MeetingLocationMap
-                apiKey={apiKey}
-                onLocationSelect={handleLocationSelect}
+            {/* Location Search with Map (for offline meetings) */}
+            {meetingType === "offline" && (
+              <div className="space-y-4">
+                {showMap && (
+                  <div className="min-h-[300px] rounded-lg overflow-hidden border">
+                    <MeetingLocationMap
+                      apiKey={apiKey}
+                      onLocationSelect={handleLocationSelect}
+                    />
+                  </div>
+                )}
+
+                {isLoadingApiKey && (
+                  <div className="flex items-center justify-center min-h-[200px] border rounded-lg">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading map...
+                    </div>
+                  </div>
+                )}
+
+                {apiKeyError && (
+                  <div className="flex items-center justify-center min-h-[100px] border rounded-lg bg-muted/50">
+                    <p className="text-sm text-muted-foreground text-center px-4">
+                      Map unavailable. You can still enter the location manually.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Location field */}
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {meetingType === "online" ? "Meeting Link" : "Location"}
+                  </FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      {meetingType === "online" ? (
+                        <Video className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      )}
+                      <Input
+                        placeholder={
+                          meetingType === "online"
+                            ? "https://meet.google.com/..."
+                            : "Office address"
+                        }
+                        className="pl-10"
+                        {...field}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Google Maps Link (for offline meetings) */}
+            {meetingType === "offline" && (
+              <FormField
+                control={form.control}
+                name="location_link"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Google Maps Link</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="https://maps.google.com/..."
+                          className="pl-10"
+                          {...field}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Start Date/Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="start_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Start Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="start_time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-          )}
 
-          {meetingType === "offline" && isLoadingApiKey && (
-            <div className="w-1/2 flex items-center justify-center min-h-[400px] border rounded-lg">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading map...
+            {/* End Date/Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="end_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>End Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="end_time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Notes */}
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Additional notes about the meeting..."
+                      rows={3}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Action Buttons */}
+            <div className="flex justify-between pt-4">
+              {isEditMode ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive" disabled={isDeleting}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Meeting</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this meeting? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Meeting" : "Create Meeting")}
+                </Button>
               </div>
             </div>
-          )}
-
-          {meetingType === "offline" && apiKeyError && (
-            <div className="w-1/2 flex items-center justify-center min-h-[400px] border rounded-lg bg-muted/50">
-              <p className="text-sm text-muted-foreground text-center px-4">
-                Map unavailable. You can still enter the location manually.
-              </p>
-            </div>
-          )}
-        </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
