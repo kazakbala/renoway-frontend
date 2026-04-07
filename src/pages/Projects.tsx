@@ -1,40 +1,18 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-interface Client {
-  id: string;
-  full_name: string | null;
-}
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface Project {
   id: string;
   name: string;
-  client_id: string;
-  user_id: string;
+  client: string;
+  client_name: string | null;
   created_at: string;
-  clients?: Client;
 }
 
 const Projects = () => {
@@ -43,52 +21,28 @@ const Projects = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
+  useEffect(() => { loadProjects(); }, []);
 
   const loadProjects = async () => {
-    const { data, error } = await supabase
-      .from("projects")
-      .select(`
-        *,
-        clients (
-          id,
-          full_name
-        )
-      `)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      toast({
-        title: "Error loading projects",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      setProjects(data || []);
+    try {
+      const { data } = await api.get("/projects/");
+      setProjects(data.results ?? data);
+    } catch (e: any) {
+      toast({ title: "Error loading projects", description: e.message, variant: "destructive" });
     }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-
-    const { error } = await supabase.from("projects").delete().eq("id", deleteId);
-
-    if (error) {
-      toast({
-        title: "Error deleting project",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Project deleted",
-        description: "The project has been deleted successfully.",
-      });
+    try {
+      await api.delete(`/projects/${deleteId}/`);
+      toast({ title: "Project deleted" });
       loadProjects();
+    } catch (e: any) {
+      toast({ title: "Error deleting project", description: e.message, variant: "destructive" });
+    } finally {
+      setDeleteId(null);
     }
-    setDeleteId(null);
   };
 
   return (
@@ -96,8 +50,7 @@ const Projects = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Projects</h1>
         <Button onClick={() => navigate("/dashboard/projects/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
+          <Plus className="mr-2 h-4 w-4" />New Project
         </Button>
       </div>
 
@@ -122,22 +75,14 @@ const Projects = () => {
               projects.map((project) => (
                 <TableRow key={project.id}>
                   <TableCell className="font-medium">{project.name}</TableCell>
-                  <TableCell>{project.clients?.full_name || "N/A"}</TableCell>
+                  <TableCell>{project.client_name || "N/A"}</TableCell>
                   <TableCell>{new Date(project.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => navigate(`/dashboard/projects/${project.id}`)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => navigate(`/dashboard/projects/${project.id}`)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteId(project.id)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(project.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -153,9 +98,7 @@ const Projects = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the project and all its rooms and works.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This will permanently delete the project and all its rooms and works.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

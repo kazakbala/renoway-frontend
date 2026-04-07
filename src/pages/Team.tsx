@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,138 +14,43 @@ import { z } from "zod";
 
 const emailSchema = z.string().trim().email({ message: "Invalid email address" }).max(255);
 
-interface Profile {
-  user_id: string;
-  email: string;
-  created_at: string;
-}
-
-interface Invitation {
-  id: string;
-  email: string;
-  status: string;
-  expires_at: string;
-  created_at: string;
-  token: string;
-}
+interface Member { id: string; email: string; created_at: string; }
+interface Invitation { id: string; email: string; status: string; expires_at: string; created_at: string; token: string; }
 
 const Team = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [members, setMembers] = useState<Profile[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadTeamData();
-  }, []);
+  useEffect(() => { loadTeamData(); }, []);
 
   const loadTeamData = async () => {
-    try {
-      // Get current user's tenant_id
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("tenant_id")
-        .eq("user_id", user?.id)
-        .single();
-
-      if (!profile?.tenant_id) return;
-
-      // Load team members
-      const { data: membersData, error: membersError } = await supabase
-        .from("profiles")
-        .select("user_id, email, created_at")
-        .eq("tenant_id", profile.tenant_id)
-        .order("created_at", { ascending: true });
-
-      if (membersError) throw membersError;
-      setMembers(membersData || []);
-
-      // Load pending invitations
-      const { data: invitationsData, error: invitationsError } = await supabase
-        .from("invitations")
-        .select("*")
-        .eq("tenant_id", profile.tenant_id)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-
-      if (invitationsError) throw invitationsError;
-      setInvitations(invitationsData || []);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    const [membersRes, invitationsRes] = await Promise.all([
+      api.get("/auth/team/"),
+      api.get("/auth/invitations/?status=pending"),
+    ]);
+    setMembers(membersRes.data.results ?? membersRes.data);
+    setInvitations(invitationsRes.data.results ?? invitationsRes.data);
   };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      // Validate email
       const validatedEmail = emailSchema.parse(email);
-
-      // Get current user's tenant_id
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("tenant_id")
-        .eq("user_id", user?.id)
-        .single();
-
-      if (!profile?.tenant_id) throw new Error("User profile not found");
-
-      // Check if email is already a member
-      const { data: existingMember } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("email", validatedEmail)
-        .eq("tenant_id", profile.tenant_id)
-        .maybeSingle();
-
-      if (existingMember) {
-        toast({
-          title: "Error",
-          description: "This email is already a team member",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Create invitation
-      const { error } = await supabase.from("invitations").insert({
-        tenant_id: profile.tenant_id,
-        email: validatedEmail,
-        invited_by: user?.id,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Invitation sent successfully",
-      });
-
+      await api.post("/auth/invitations/", { email: validatedEmail });
+      toast({ title: "Success", description: "Invitation created successfully" });
       setEmail("");
       loadTeamData();
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive",
-        });
+        toast({ title: "Validation Error", description: error.errors[0].message, variant: "destructive" });
       } else {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: error.response?.data?.detail || error.message, variant: "destructive" });
       }
     } finally {
       setLoading(false);
@@ -154,27 +59,12 @@ const Team = () => {
 
   const handleDeleteInvitation = async () => {
     if (!deleteId) return;
-
     try {
-      const { error } = await supabase
-        .from("invitations")
-        .delete()
-        .eq("id", deleteId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Invitation deleted successfully",
-      });
-
+      await api.delete(`/auth/invitations/${deleteId}/`);
+      toast({ title: "Success", description: "Invitation deleted successfully" });
       loadTeamData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setDeleteId(null);
     }
@@ -183,41 +73,25 @@ const Team = () => {
   const copyInvitationLink = (token: string) => {
     const inviteUrl = `${window.location.origin}/auth?invite=${token}`;
     navigator.clipboard.writeText(inviteUrl);
-    toast({
-      title: "Copied!",
-      description: "Invitation link copied to clipboard",
-    });
+    toast({ title: "Copied!", description: "Invitation link copied to clipboard" });
   };
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserPlus className="w-5 h-5" />
-            Invite Team Member
-          </CardTitle>
-          <CardDescription>
-            Send an invitation to add a new member to your team
-          </CardDescription>
+          <CardTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" />Invite Team Member</CardTitle>
+          <CardDescription>Send an invitation to add a new member to your team</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleInvite} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="colleague@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                maxLength={255}
-              />
+              <Input id="email" type="email" placeholder="colleague@company.com"
+                value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={255} />
             </div>
             <Button type="submit" disabled={loading}>
-              <Mail className="w-4 h-4 mr-2" />
-              {loading ? "Sending..." : "Send Invitation"}
+              <Mail className="w-4 h-4 mr-2" />{loading ? "Sending..." : "Send Invitation"}
             </Button>
           </form>
         </CardContent>
@@ -231,24 +105,15 @@ const Team = () => {
         <CardContent>
           {members.length > 0 ? (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Joined</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Joined</TableHead></TableRow></TableHeader>
               <TableBody>
                 {members.map((member) => (
-                  <TableRow key={member.user_id}>
+                  <TableRow key={member.id}>
                     <TableCell className="font-medium">
                       {member.email}
-                      {member.user_id === user?.id && (
-                        <Badge variant="secondary" className="ml-2">You</Badge>
-                      )}
+                      {member.id === user?.id && <Badge variant="secondary" className="ml-2">You</Badge>}
                     </TableCell>
-                    <TableCell>
-                      {new Date(member.created_at).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell>{new Date(member.created_at).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -267,36 +132,16 @@ const Team = () => {
         <CardContent>
           {invitations.length > 0 ? (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Expires</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
               <TableBody>
-                {invitations.map((invitation) => (
-                  <TableRow key={invitation.id}>
-                    <TableCell className="font-medium">{invitation.email}</TableCell>
-                    <TableCell>
-                      {new Date(invitation.expires_at).toLocaleDateString()}
-                    </TableCell>
+                {invitations.map((inv) => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-medium">{inv.email}</TableCell>
+                    <TableCell>{new Date(inv.expires_at).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyInvitationLink(invitation.token)}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDeleteId(invitation.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => copyInvitationLink(inv.token)}><Copy className="w-4 h-4" /></Button>
+                        <Button variant="outline" size="sm" onClick={() => setDeleteId(inv.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -313,9 +158,7 @@ const Team = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Invitation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this invitation? This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Are you sure you want to delete this invitation?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

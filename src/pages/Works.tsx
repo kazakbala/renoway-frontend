@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/api/client";
 import { Button } from "@/components/ui/button";
 import {
   DndContext,
@@ -72,14 +72,13 @@ interface RoomType {
 
 interface Work {
   id: string;
-  category_id: string | null;
+  category: string | null;
   name: string;
   description: string | null;
   unit_type: string;
   price_per_unit: number;
   calculation_base: string | null;
   display_order?: number;
-  categories?: Category;
   room_type_ids?: string[];
 }
 
@@ -109,7 +108,7 @@ const Works = () => {
     description: "",
     unit_type: "m2",
     price_per_unit: "",
-    category_id: "",
+    category: "",
     calculation_base: "none",
     room_type_ids: [] as string[],
   });
@@ -119,53 +118,17 @@ const Works = () => {
   }, []);
 
   const loadData = async () => {
-    const [worksRes, categoriesRes, roomTypesRes] = await Promise.all([
-      supabase.from("works").select("*, categories(*)").order("display_order", { ascending: true }),
-      supabase.from("categories").select("*").order("display_order", { ascending: true }),
-      supabase.from("room_types").select("*").order("name"),
-    ]);
-
-    if (worksRes.error) {
-      toast({
-        title: "Error loading works",
-        description: worksRes.error.message,
-        variant: "destructive",
-      });
-    } else {
-      // Load room types for each work
-      const worksWithRoomTypes = await Promise.all(
-        (worksRes.data || []).map(async (work) => {
-          const { data: workRoomTypes } = await supabase
-            .from("work_room_types")
-            .select("room_type_id")
-            .eq("work_id", work.id);
-          return {
-            ...work,
-            room_type_ids: workRoomTypes?.map((rt) => rt.room_type_id) || [],
-          };
-        })
-      );
-      setWorks(worksWithRoomTypes);
-    }
-
-    if (categoriesRes.error) {
-      toast({
-        title: "Error loading categories",
-        description: categoriesRes.error.message,
-        variant: "destructive",
-      });
-    } else {
-      setCategories(categoriesRes.data || []);
-    }
-
-    if (roomTypesRes.error) {
-      toast({
-        title: "Error loading room types",
-        description: roomTypesRes.error.message,
-        variant: "destructive",
-      });
-    } else {
-      setRoomTypes(roomTypesRes.data || []);
+    try {
+      const [worksRes, categoriesRes, roomTypesRes] = await Promise.all([
+        api.get("/works/"),
+        api.get("/categories/"),
+        api.get("/room-types/"),
+      ]);
+      setWorks(worksRes.data.results ?? worksRes.data);
+      setCategories(categoriesRes.data.results ?? categoriesRes.data);
+      setRoomTypes(roomTypesRes.data.results ?? roomTypesRes.data);
+    } catch (e: any) {
+      toast({ title: "Error loading data", description: e.message, variant: "destructive" });
     }
   };
 
@@ -174,138 +137,87 @@ const Works = () => {
 
     const workData = {
       name: formData.name,
-      description: formData.description,
+      description: formData.description || null,
       unit_type: formData.unit_type,
       price_per_unit: parseFloat(formData.price_per_unit),
-      category_id: formData.category_id || null,
+      category: formData.category || null,
       calculation_base: formData.calculation_base === "none" ? null : formData.calculation_base,
     };
 
-    if (editingWork) {
-      const { error } = await supabase
-        .from("works")
-        .update(workData)
-        .eq("id", editingWork.id);
-
-      if (error) {
-        toast({
-          title: "Error updating work",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
+    try {
+      let workId: string;
+      if (editingWork) {
+        await api.patch(`/works/${editingWork.id}/`, workData);
+        workId = editingWork.id;
+        toast({ title: "Work updated successfully" });
+      } else {
+        const { data } = await api.post("/works/", workData);
+        workId = data.id;
+        toast({ title: "Work created successfully" });
       }
 
-      // Update room type relationships
-      await supabase.from("work_room_types").delete().eq("work_id", editingWork.id);
-      
-      if (formData.room_type_ids.length > 0) {
-        const roomTypeRelations = formData.room_type_ids.map((rtId) => ({
-          work_id: editingWork.id,
-          room_type_id: rtId,
-        }));
-        await supabase.from("work_room_types").insert(roomTypeRelations);
-      }
+      await api.post(`/works/${workId}/room-types/`, { room_type_ids: formData.room_type_ids });
 
-      toast({ title: "Work updated successfully" });
       loadData();
       handleClose();
-    } else {
-      const { data, error } = await supabase.from("works").insert([workData]).select().single();
-
-      if (error) {
-        toast({
-          title: "Error creating work",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Insert room type relationships
-      if (data && formData.room_type_ids.length > 0) {
-        const roomTypeRelations = formData.room_type_ids.map((rtId) => ({
-          work_id: data.id,
-          room_type_id: rtId,
-        }));
-        await supabase.from("work_room_types").insert(roomTypeRelations);
-      }
-
-      toast({ title: "Work created successfully" });
-      loadData();
-      handleClose();
+    } catch (e: any) {
+      toast({
+        title: editingWork ? "Error updating work" : "Error creating work",
+        description: e.message,
+        variant: "destructive",
+      });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this work?")) return;
 
-    const { error } = await supabase.from("works").delete().eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Error deleting work",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await api.delete(`/works/${id}/`);
       toast({ title: "Work deleted successfully" });
       loadData();
+    } catch (e: any) {
+      toast({ title: "Error deleting work", description: e.message, variant: "destructive" });
     }
   };
 
   const handleAddCategory = async () => {
     if (!newCategory.trim()) return;
 
-    const { error } = await supabase.from("categories").insert([{ name: newCategory }]);
-
-    if (error) {
-      toast({
-        title: "Error creating category",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await api.post("/categories/", { name: newCategory });
       toast({ title: "Category created successfully" });
       setNewCategory("");
       setCategoryOpen(false);
       loadData();
+    } catch (e: any) {
+      toast({ title: "Error creating category", description: e.message, variant: "destructive" });
     }
   };
 
   const handleAddRoomType = async () => {
     if (!newRoomType.trim()) return;
 
-    const { error } = await supabase.from("room_types").insert([{ name: newRoomType }]);
-
-    if (error) {
-      toast({
-        title: "Error creating room type",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await api.post("/room-types/", { name: newRoomType });
       toast({ title: "Room type created successfully" });
       setNewRoomType("");
       setRoomTypeOpen(false);
       loadData();
+    } catch (e: any) {
+      toast({ title: "Error creating room type", description: e.message, variant: "destructive" });
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
     if (!confirm("Are you sure you want to delete this category?")) return;
 
-    const { error } = await supabase.from("categories").delete().eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Error deleting category",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await api.delete(`/categories/${id}/`);
       toast({ title: "Category deleted successfully" });
       loadData();
+    } catch (e: any) {
+      toast({ title: "Error deleting category", description: e.message, variant: "destructive" });
     }
   };
 
@@ -319,54 +231,32 @@ const Works = () => {
 
     if (oldIndex === -1 || newIndex === -1) return;
 
-    // Create new array with updated order
     const reorderedCategories = [...categories];
     const [movedCategory] = reorderedCategories.splice(oldIndex, 1);
     reorderedCategories.splice(newIndex, 0, movedCategory);
 
-    // Update local state immediately for smooth UX
     setCategories(reorderedCategories);
 
-    // Update display_order in database
-    const updates = reorderedCategories.map((cat, index) => ({
-      id: cat.id,
-      display_order: index,
-    }));
-
-    for (const update of updates) {
-      const { error } = await supabase
-        .from("categories")
-        .update({ display_order: update.display_order })
-        .eq("id", update.id);
-
-      if (error) {
-        toast({
-          title: "Error updating category order",
-          description: error.message,
-          variant: "destructive",
-        });
-        loadData(); // Reload to reset state on error
-        return;
+    try {
+      for (let i = 0; i < reorderedCategories.length; i++) {
+        await api.patch(`/categories/${reorderedCategories[i].id}/`, { display_order: i });
       }
+      toast({ title: "Category order updated" });
+    } catch (e: any) {
+      toast({ title: "Error updating category order", description: e.message, variant: "destructive" });
+      loadData();
     }
-
-    toast({ title: "Category order updated" });
   };
 
   const handleDeleteRoomType = async (id: string) => {
     if (!confirm("Are you sure you want to delete this room type?")) return;
 
-    const { error } = await supabase.from("room_types").delete().eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Error deleting room type",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await api.delete(`/room-types/${id}/`);
       toast({ title: "Room type deleted successfully" });
       loadData();
+    } catch (e: any) {
+      toast({ title: "Error deleting room type", description: e.message, variant: "destructive" });
     }
   };
 
@@ -378,7 +268,7 @@ const Works = () => {
       description: "",
       unit_type: "m2",
       price_per_unit: "",
-      category_id: "",
+      category: "",
       calculation_base: "none",
       room_type_ids: [],
     });
@@ -391,35 +281,33 @@ const Works = () => {
       description: work.description || "",
       unit_type: work.unit_type,
       price_per_unit: work.price_per_unit.toString(),
-      category_id: work.category_id || "",
+      category: work.category || "",
       calculation_base: work.calculation_base || "none",
       room_type_ids: work.room_type_ids || [],
     });
     setOpen(true);
   };
 
-  // Filter works for search dropdown (max 5 results)
   const searchResults = searchQuery.trim()
     ? works
         .filter((work) => {
           const query = searchQuery.toLowerCase();
+          const categoryName = categories.find((c) => c.id === work.category)?.name || "";
           return (
             work.name.toLowerCase().includes(query) ||
             work.description?.toLowerCase().includes(query) ||
-            work.categories?.name.toLowerCase().includes(query)
+            categoryName.toLowerCase().includes(query)
           );
         })
         .slice(0, 5)
     : [];
 
-  // Group works by category
   const worksByCategory = categories.map((category) => ({
     category,
-    works: works.filter((work) => work.category_id === category.id),
+    works: works.filter((work) => work.category === category.id),
   }));
 
-  // Uncategorized works
-  const uncategorizedWorks = works.filter((work) => !work.category_id);
+  const uncategorizedWorks = works.filter((work) => !work.category);
 
   const handleSearchSelect = (work: Work) => {
     handleEdit(work);
@@ -429,34 +317,38 @@ const Works = () => {
 
   const handleMoveUp = async (work: Work, categoryWorks: Work[]) => {
     const currentIndex = categoryWorks.findIndex((w) => w.id === work.id);
-    if (currentIndex === 0) return; // Already at the top
+    if (currentIndex === 0) return;
 
     const prevWork = categoryWorks[currentIndex - 1];
 
-    // Swap display_order values
-    await Promise.all([
-      supabase.from("works").update({ display_order: prevWork.display_order }).eq("id", work.id),
-      supabase.from("works").update({ display_order: work.display_order }).eq("id", prevWork.id),
-    ]);
-
-    toast({ title: "Work moved up" });
-    loadData();
+    try {
+      await Promise.all([
+        api.patch(`/works/${work.id}/`, { display_order: prevWork.display_order }),
+        api.patch(`/works/${prevWork.id}/`, { display_order: work.display_order }),
+      ]);
+      toast({ title: "Work moved up" });
+      loadData();
+    } catch (e: any) {
+      toast({ title: "Error reordering work", description: e.message, variant: "destructive" });
+    }
   };
 
   const handleMoveDown = async (work: Work, categoryWorks: Work[]) => {
     const currentIndex = categoryWorks.findIndex((w) => w.id === work.id);
-    if (currentIndex === categoryWorks.length - 1) return; // Already at the bottom
+    if (currentIndex === categoryWorks.length - 1) return;
 
     const nextWork = categoryWorks[currentIndex + 1];
 
-    // Swap display_order values
-    await Promise.all([
-      supabase.from("works").update({ display_order: nextWork.display_order }).eq("id", work.id),
-      supabase.from("works").update({ display_order: work.display_order }).eq("id", nextWork.id),
-    ]);
-
-    toast({ title: "Work moved down" });
-    loadData();
+    try {
+      await Promise.all([
+        api.patch(`/works/${work.id}/`, { display_order: nextWork.display_order }),
+        api.patch(`/works/${nextWork.id}/`, { display_order: work.display_order }),
+      ]);
+      toast({ title: "Work moved down" });
+      loadData();
+    } catch (e: any) {
+      toast({ title: "Error reordering work", description: e.message, variant: "destructive" });
+    }
   };
 
   const downloadExampleCSV = () => {
@@ -466,11 +358,11 @@ Painting,Interior Wall Painting,Premium paint with 2 coats,m2,25.00
 Plumbing,Water Pipe Installation,PVC pipe installation with fittings,m,12.75
 Electrical,Light Fixture Installation,Standard ceiling light fixture,pc,85.00
 Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = 'works_example.csv';
+    link.download = "works_example.csv";
     link.click();
   };
 
@@ -486,20 +378,19 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-      
-      const data = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim());
+      const lines = text.split("\n").filter((line) => line.trim());
+
+      const data = lines.slice(1).map((line) => {
+        const values = line.split(",").map((v) => v.trim());
         return {
           categoryName: values[0],
           workName: values[1],
           description: values[2],
           unit: values[3],
-          price: values[4]
+          price: values[4],
         };
       });
-      
+
       setParsedData(data);
     };
     reader.readAsText(file);
@@ -507,62 +398,124 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
 
   const handleImportConfirm = async () => {
     setIsProcessing(true);
-    
+
     try {
+      const categoryCache: Record<string, string> = {};
+
       for (const item of parsedData) {
-        // Check if category exists
-        let categoryId = null;
+        let categoryId: string | null = null;
+
         if (item.categoryName) {
-          const { data: existingCategory } = await supabase
-            .from('categories')
-            .select('id')
-            .eq('name', item.categoryName)
-            .single();
-          
-          if (existingCategory) {
-            categoryId = existingCategory.id;
+          if (categoryCache[item.categoryName]) {
+            categoryId = categoryCache[item.categoryName];
           } else {
-            // Create new category
-            const { data: newCat, error: catError } = await supabase
-              .from('categories')
-              .insert([{ name: item.categoryName }])
-              .select('id')
-              .single();
-            
-            if (catError) throw catError;
-            categoryId = newCat.id;
+            const existing = categories.find(
+              (c) => c.name.toLowerCase() === item.categoryName.toLowerCase()
+            );
+            if (existing) {
+              categoryId = existing.id;
+            } else {
+              const { data: newCat } = await api.post("/categories/", { name: item.categoryName });
+              categoryId = newCat.id;
+            }
+            categoryCache[item.categoryName] = categoryId!;
           }
         }
-        
-        // Insert work
-        const { error: workError } = await supabase
-          .from('works')
-          .insert([{
-            name: item.workName,
-            description: item.description || null,
-            unit_type: item.unit,
-            price_per_unit: parseFloat(item.price),
-            category_id: categoryId
-          }]);
-        
-        if (workError) throw workError;
+
+        await api.post("/works/", {
+          name: item.workName,
+          description: item.description || null,
+          unit_type: item.unit,
+          price_per_unit: parseFloat(item.price),
+          category: categoryId,
+        });
       }
-      
+
       toast({ title: `Successfully imported ${parsedData.length} works` });
       setImportOpen(false);
       setCsvFile(null);
       setParsedData([]);
       loadData();
-    } catch (error: any) {
-      toast({
-        title: "Error importing works",
-        description: error.message,
-        variant: "destructive"
-      });
+    } catch (e: any) {
+      toast({ title: "Error importing works", description: e.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const WorkTable = ({ categoryWorks, groupKey }: { categoryWorks: Work[]; groupKey: string }) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[80px]">Order</TableHead>
+          <TableHead>Name</TableHead>
+          <TableHead>Room Types</TableHead>
+          <TableHead>Description</TableHead>
+          <TableHead>Unit</TableHead>
+          <TableHead>Price (AED)</TableHead>
+          <TableHead className="w-[120px]">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {categoryWorks.map((work, index) => (
+          <TableRow key={work.id}>
+            <TableCell>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleMoveUp(work, categoryWorks)}
+                  disabled={index === 0}
+                >
+                  <ArrowUp className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleMoveDown(work, categoryWorks)}
+                  disabled={index === categoryWorks.length - 1}
+                >
+                  <ArrowDown className="w-4 h-4" />
+                </Button>
+              </div>
+            </TableCell>
+            <TableCell className="font-medium">{work.name}</TableCell>
+            <TableCell>
+              {work.room_type_ids && work.room_type_ids.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {work.room_type_ids.map((rtId) => {
+                    const roomType = roomTypes.find((rt) => rt.id === rtId);
+                    return roomType ? (
+                      <Badge key={rtId} variant="secondary" className="text-xs">
+                        {roomType.name}
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              ) : (
+                "-"
+              )}
+            </TableCell>
+            <TableCell className="max-w-xs truncate">{work.description || "-"}</TableCell>
+            <TableCell>{work.unit_type}</TableCell>
+            <TableCell>{Number(work.price_per_unit).toFixed(2)}</TableCell>
+            <TableCell>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(work)}>
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(work.id)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
 
   return (
     <div className="space-y-6">
@@ -667,25 +620,16 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={downloadExampleCSV}
-                >
+                <Button variant="outline" className="w-full" onClick={downloadExampleCSV}>
                   <Download className="w-4 h-4 mr-2" />
                   Download Example CSV
                 </Button>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="csv-file">Upload CSV File</Label>
-                  <Input
-                    id="csv-file"
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileUpload}
-                  />
+                  <Input id="csv-file" type="file" accept=".csv" onChange={handleFileUpload} />
                 </div>
-                
+
                 {parsedData.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Preview ({parsedData.length} works found)</p>
@@ -752,8 +696,8 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
                       <Select
-                        value={formData.category_id}
-                        onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                        value={formData.category}
+                        onValueChange={(value) => setFormData({ ...formData, category: value })}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select category" />
@@ -887,7 +831,7 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
             />
           </div>
           <div className="text-sm text-muted-foreground">
-            {works.length} work{works.length !== 1 ? 's' : ''} total
+            {works.length} work{works.length !== 1 ? "s" : ""} total
           </div>
         </div>
 
@@ -906,11 +850,11 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
                         <div className="flex-1">
                           <div className="font-medium">{work.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            {work.categories?.name || "Uncategorized"}
+                            {categories.find((c) => c.id === work.category)?.name || "Uncategorized"}
                           </div>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {work.price_per_unit.toFixed(2)} AED / {work.unit_type}
+                          {Number(work.price_per_unit).toFixed(2)} AED / {work.unit_type}
                         </div>
                       </div>
                     </CommandItem>
@@ -923,93 +867,24 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
       </div>
 
       <Accordion type="multiple" className="space-y-4">
-        {worksByCategory.map(({ category, works: categoryWorks }) => (
-          categoryWorks.length > 0 && (
-            <AccordionItem key={category.id} value={category.id} className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{category.name}</Badge>
-                  <span className="text-sm text-muted-foreground">
-                    ({categoryWorks.length} work{categoryWorks.length !== 1 ? 's' : ''})
-                  </span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[80px]">Order</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Room Types</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Price (AED)</TableHead>
-                      <TableHead className="w-[120px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {categoryWorks.map((work, index) => (
-                      <TableRow key={work.id}>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleMoveUp(work, categoryWorks)}
-                              disabled={index === 0}
-                            >
-                              <ArrowUp className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleMoveDown(work, categoryWorks)}
-                              disabled={index === categoryWorks.length - 1}
-                            >
-                              <ArrowDown className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{work.name}</TableCell>
-                        <TableCell>
-                          {work.room_type_ids && work.room_type_ids.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {work.room_type_ids.map((rtId) => {
-                                const roomType = roomTypes.find((rt) => rt.id === rtId);
-                                return roomType ? (
-                                  <Badge key={rtId} variant="secondary" className="text-xs">
-                                    {roomType.name}
-                                  </Badge>
-                                ) : null;
-                              })}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">{work.description || "-"}</TableCell>
-                        <TableCell>{work.unit_type}</TableCell>
-                        <TableCell>{work.price_per_unit.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(work)}>
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(work.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </AccordionContent>
-            </AccordionItem>
-          )
-        ))}
+        {worksByCategory.map(
+          ({ category, works: categoryWorks }) =>
+            categoryWorks.length > 0 && (
+              <AccordionItem key={category.id} value={category.id} className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{category.name}</Badge>
+                    <span className="text-sm text-muted-foreground">
+                      ({categoryWorks.length} work{categoryWorks.length !== 1 ? "s" : ""})
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <WorkTable categoryWorks={categoryWorks} groupKey={category.id} />
+                </AccordionContent>
+              </AccordionItem>
+            )
+        )}
 
         {uncategorizedWorks.length > 0 && (
           <AccordionItem value="uncategorized" className="border rounded-lg px-4">
@@ -1017,82 +892,12 @@ Carpentry,Custom Cabinet Set,Kitchen cabinet with hardware,set,450.00`;
               <div className="flex items-center gap-2">
                 <Badge variant="outline">Uncategorized</Badge>
                 <span className="text-sm text-muted-foreground">
-                  ({uncategorizedWorks.length} work{uncategorizedWorks.length !== 1 ? 's' : ''})
+                  ({uncategorizedWorks.length} work{uncategorizedWorks.length !== 1 ? "s" : ""})
                 </span>
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[80px]">Order</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Room Types</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Unit</TableHead>
-                    <TableHead>Price (AED)</TableHead>
-                    <TableHead className="w-[120px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {uncategorizedWorks.map((work, index) => (
-                    <TableRow key={work.id}>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleMoveUp(work, uncategorizedWorks)}
-                            disabled={index === 0}
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleMoveDown(work, uncategorizedWorks)}
-                            disabled={index === uncategorizedWorks.length - 1}
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{work.name}</TableCell>
-                      <TableCell>
-                        {work.room_type_ids && work.room_type_ids.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {work.room_type_ids.map((rtId) => {
-                              const roomType = roomTypes.find((rt) => rt.id === rtId);
-                              return roomType ? (
-                                <Badge key={rtId} variant="secondary" className="text-xs">
-                                  {roomType.name}
-                                </Badge>
-                              ) : null;
-                            })}
-                          </div>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">{work.description || "-"}</TableCell>
-                      <TableCell>{work.unit_type}</TableCell>
-                      <TableCell>{work.price_per_unit.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(work)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(work.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <WorkTable categoryWorks={uncategorizedWorks} groupKey="uncategorized" />
             </AccordionContent>
           </AccordionItem>
         )}

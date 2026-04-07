@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Calculator, GripVertical, FileDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calculator, FileDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,11 +32,9 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  useSortable,
   horizontalListSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
 interface Client {
   id: string;
@@ -59,10 +57,9 @@ interface Work {
   name: string;
   price_per_unit: number;
   unit_type: string;
-  calculation_base: string;
-  category_id: string | null;
-  categories?: Category;
-  work_room_types?: Array<{ room_type_id: string }>;
+  calculation_base: string | null;
+  category: string | null;
+  room_type_ids: string[];
 }
 
 interface RoomWork {
@@ -71,7 +68,6 @@ interface RoomWork {
   quantity: number;
   custom_price_per_unit?: number | null;
   custom_name?: string | null;
-  work?: Work;
 }
 
 interface Room {
@@ -83,7 +79,6 @@ interface Room {
   floor_area: string;
   perimeter: string;
   works: RoomWork[];
-  room_types?: RoomType;
 }
 
 interface Material {
@@ -97,18 +92,18 @@ interface ProjectMaterial {
   id?: string;
   material_id: string;
   quantity: number;
-  materials?: Material;
 }
 
 const ProjectForm = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [projectName, setProjectName] = useState("");
   const [clientId, setClientId] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [allWorks, setAllWorks] = useState<Work[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,7 +115,9 @@ const ProjectForm = () => {
   const [timelineCategories, setTimelineCategories] = useState<Array<{ id: string; name: string; days: number }>>([]);
   const [allMaterials, setAllMaterials] = useState<Material[]>([]);
   const [projectMaterials, setProjectMaterials] = useState<ProjectMaterial[]>([]);
-  const [materialSearch, setMaterialSearch] = useState("");
+  // Track existing IDs for deletion during update
+  const [existingRoomIds, setExistingRoomIds] = useState<string[]>([]);
+  const [existingMaterialIds, setExistingMaterialIds] = useState<string[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -134,87 +131,68 @@ const ProjectForm = () => {
   }, [id]);
 
   const loadData = async () => {
-    const [clientsRes, roomTypesRes, worksRes, materialsRes] = await Promise.all([
-      supabase.from("clients").select("*").order("full_name"),
-      supabase.from("room_types").select("*").order("name"),
-      supabase.from("works").select("*, work_room_types(room_type_id), categories(id, name, display_order)").order("display_order"),
-      supabase.from("materials").select("*").order("name"),
+    const [clientsRes, roomTypesRes, worksRes, categoriesRes, materialsRes] = await Promise.all([
+      api.get("/clients/"),
+      api.get("/room-types/"),
+      api.get("/works/"),
+      api.get("/categories/"),
+      api.get("/materials/"),
     ]);
 
-    if (clientsRes.data) setClients(clientsRes.data);
-    if (roomTypesRes.data) setRoomTypes(roomTypesRes.data);
-    if (worksRes.data) setAllWorks(worksRes.data);
-    if (materialsRes.data) setAllMaterials(materialsRes.data);
+    setClients(clientsRes.data.results ?? clientsRes.data);
+    setRoomTypes(roomTypesRes.data.results ?? roomTypesRes.data);
+    setAllWorks(worksRes.data.results ?? worksRes.data);
+    setCategories(categoriesRes.data.results ?? categoriesRes.data);
+    setAllMaterials(materialsRes.data.results ?? materialsRes.data);
 
     if (id) {
-      const { data: project } = await supabase.from("projects").select("*").eq("id", id).single();
+      try {
+        const { data: project } = await api.get(`/projects/${id}/`);
 
-      if (project) {
         setProjectName(project.name);
-        setClientId(project.client_id);
+        setClientId(project.client);
         setPriceMultiplier(project.price_multiplier || 1);
         setDiscount(project.discount || 0);
         setDiscountType((project.discount_type as "amount" | "percentage") || "amount");
         setAdvancePaymentPercentage(project.advance_payment_percentage || 30);
         setTimelineCategories((project.timeline_categories as Array<{ id: string; name: string; days: number }>) || []);
 
-        const { data: projectRooms } = await supabase
-          .from("project_rooms")
-          .select(
-            `
-            *,
-            room_types(id, name),
-            project_room_works(work_id, is_selected, quantity, custom_price_per_unit, custom_name)
-          `,
-          )
-          .eq("project_id", id);
+        const roomsData: Room[] = project.rooms.map((room: any) => ({
+          id: room.id,
+          name: room.name,
+          room_type_id: room.room_type,
+          opening_area: room.opening_area?.toString() || "",
+          wall_area: room.wall_area?.toString() || "",
+          floor_area: room.floor_area?.toString() || "",
+          perimeter: room.perimeter?.toString() || "",
+          works: room.works.map((rw: any) => ({
+            work_id: rw.work,
+            is_selected: rw.is_selected,
+            quantity: rw.quantity,
+            custom_price_per_unit: rw.custom_price_per_unit,
+            custom_name: rw.custom_name,
+          })),
+        }));
+        setRooms(roomsData);
+        setExistingRoomIds(project.rooms.map((r: any) => r.id));
 
-        if (projectRooms) {
-          const roomsData = await Promise.all(
-            projectRooms.map(async (room: any) => {
-              const worksData = room.project_room_works.map((w: any) => ({
-                work_id: w.work_id,
-                is_selected: w.is_selected,
-                quantity: w.quantity,
-                custom_price_per_unit: w.custom_price_per_unit,
-                custom_name: w.custom_name,
-              }));
-
-              return {
-                id: room.id,
-                name: room.name || `Room ${projectRooms.indexOf(room) + 1}`,
-                room_type_id: room.room_type_id,
-                opening_area: room.opening_area?.toString() || "",
-                wall_area: room.wall_area?.toString() || "",
-                floor_area: room.floor_area?.toString() || "",
-                perimeter: room.perimeter?.toString() || "",
-                works: worksData,
-                room_types: room.room_types,
-              };
-            }),
-          );
-          setRooms(roomsData);
-        }
-
-        // Load project materials
-        const { data: projMaterials } = await supabase
-          .from("project_materials")
-          .select("id, material_id, quantity, materials(id, name, unit_type, price_per_unit)")
-          .eq("project_id", id);
-
-        if (projMaterials) {
-          setProjectMaterials(projMaterials as unknown as ProjectMaterial[]);
-        }
+        const materialsData: ProjectMaterial[] = project.materials.map((pm: any) => ({
+          id: pm.id,
+          material_id: pm.material,
+          quantity: pm.quantity,
+        }));
+        setProjectMaterials(materialsData);
+        setExistingMaterialIds(project.materials.map((m: any) => m.id));
+      } catch (e: any) {
+        toast({ title: "Error loading project", description: e.message, variant: "destructive" });
       }
     }
   };
 
   const generateRoomName = (roomTypeId: string, currentRooms: Room[]): string => {
     if (!roomTypeId) return `Room ${currentRooms.length + 1}`;
-
     const roomType = roomTypes.find((rt) => rt.id === roomTypeId);
     if (!roomType) return `Room ${currentRooms.length + 1}`;
-
     const sameTypeCount = currentRooms.filter((r) => r.room_type_id === roomTypeId).length;
     return `${roomType.name} ${sameTypeCount + 1}`;
   };
@@ -239,7 +217,6 @@ const ProjectForm = () => {
   const removeRoom = (index: number) => {
     const newRooms = rooms.filter((_, i) => i !== index);
     setRooms(newRooms);
-    // Switch to first tab if current tab is removed
     if (parseInt(activeTab) === index && newRooms.length > 0) {
       setActiveTab("0");
     } else if (parseInt(activeTab) > index) {
@@ -250,18 +227,11 @@ const ProjectForm = () => {
   const updateRoom = (index: number, field: keyof Room, value: any) => {
     const newRooms = [...rooms];
     if (field === "room_type_id") {
-      // When room type changes, initialize works for that room type and update name
-      const roomTypeWorks = allWorks.filter((work) =>
-        work.work_room_types?.some((wrt: any) => wrt.room_type_id === value),
-      );
-
+      const roomTypeWorks = allWorks.filter((work) => work.room_type_ids.includes(value));
       newRooms[index] = {
         ...newRooms[index],
         [field]: value,
-        name: generateRoomName(
-          value,
-          newRooms.filter((_, i) => i !== index),
-        ),
+        name: generateRoomName(value, newRooms.filter((_, i) => i !== index)),
         works: roomTypeWorks.map((work) => ({
           work_id: work.id,
           is_selected: false,
@@ -272,14 +242,11 @@ const ProjectForm = () => {
       };
     } else {
       newRooms[index] = { ...newRooms[index], [field]: value };
-
-      // Recalculate quantities based on areas
-      if (["opening_area", "wall_area", "floor_area", "perimeter"].includes(field)) {
+      if (["opening_area", "wall_area", "floor_area", "perimeter"].includes(field as string)) {
         newRooms[index].works = newRooms[index].works.map((rw) => {
           const work = allWorks.find((w) => w.id === rw.work_id);
           if (work && rw.is_selected) {
-            const quantity = calculateDefaultQuantity(work, newRooms[index]);
-            return { ...rw, quantity };
+            return { ...rw, quantity: calculateDefaultQuantity(work, newRooms[index]) };
           }
           return rw;
         });
@@ -289,17 +256,11 @@ const ProjectForm = () => {
   };
 
   const calculateDefaultQuantity = (work: Work, room: Room): number => {
-    if (!work.calculation_base) {
-      return 1;
-    }
-
     switch (work.calculation_base) {
       case "floor":
         return parseFloat(room.floor_area) || 0;
       case "wall":
-        const wallArea = parseFloat(room.wall_area) || 0;
-        const openingArea = parseFloat(room.opening_area) || 0;
-        return wallArea - openingArea;
+        return (parseFloat(room.wall_area) || 0) - (parseFloat(room.opening_area) || 0);
       case "perimeter":
         return parseFloat(room.perimeter) || 0;
       default:
@@ -307,11 +268,15 @@ const ProjectForm = () => {
     }
   };
 
-  const updateRoomWork = (roomIndex: number, workId: string, field: "is_selected" | "quantity" | "custom_price_per_unit" | "custom_name", value: any) => {
+  const updateRoomWork = (
+    roomIndex: number,
+    workId: string,
+    field: "is_selected" | "quantity" | "custom_price_per_unit" | "custom_name",
+    value: any,
+  ) => {
     const newRooms = [...rooms];
     let workIndex = newRooms[roomIndex].works.findIndex((w) => w.work_id === workId);
 
-    // If work doesn't exist in the array, add it first
     if (workIndex === -1) {
       newRooms[roomIndex].works.push({
         work_id: workId,
@@ -324,7 +289,6 @@ const ProjectForm = () => {
     }
 
     if (field === "is_selected" && value) {
-      // Auto-calculate quantity when selecting a work
       const work = allWorks.find((w) => w.id === workId);
       if (work) {
         newRooms[roomIndex].works[workIndex] = {
@@ -348,7 +312,7 @@ const ProjectForm = () => {
       if (rw.is_selected) {
         const work = allWorks.find((w) => w.id === rw.work_id);
         if (work) {
-          const effectivePrice = rw.custom_price_per_unit ?? (work.price_per_unit * priceMultiplier);
+          const effectivePrice = rw.custom_price_per_unit ?? work.price_per_unit * priceMultiplier;
           return sum + effectivePrice * rw.quantity;
         }
       }
@@ -362,213 +326,99 @@ const ProjectForm = () => {
 
   const calculateMaterialsTotal = (): number => {
     return projectMaterials.reduce((sum, pm) => {
-      const material = allMaterials.find(m => m.id === pm.material_id);
-      if (material) {
-        return sum + (material.price_per_unit * pm.quantity);
-      }
-      return sum;
+      const material = allMaterials.find((m) => m.id === pm.material_id);
+      return material ? sum + material.price_per_unit * pm.quantity : sum;
     }, 0);
   };
 
   const addMaterial = (materialId: string) => {
-    const existing = projectMaterials.find(pm => pm.material_id === materialId);
-    if (existing) {
-      toast({
-        title: "Material already added",
-        variant: "destructive",
-      });
+    if (projectMaterials.some((pm) => pm.material_id === materialId)) {
+      toast({ title: "Material already added", variant: "destructive" });
       return;
     }
-
-    setProjectMaterials([
-      ...projectMaterials,
-      { material_id: materialId, quantity: 1 }
-    ]);
-    setMaterialSearch("");
+    setProjectMaterials([...projectMaterials, { material_id: materialId, quantity: 1 }]);
   };
 
   const updateMaterialQuantity = (materialId: string, quantity: number) => {
-    setProjectMaterials(projectMaterials.map(pm =>
-      pm.material_id === materialId ? { ...pm, quantity } : pm
-    ));
+    setProjectMaterials(projectMaterials.map((pm) => (pm.material_id === materialId ? { ...pm, quantity } : pm)));
   };
 
   const removeMaterial = (materialId: string) => {
-    setProjectMaterials(projectMaterials.filter(pm => pm.material_id !== materialId));
+    setProjectMaterials(projectMaterials.filter((pm) => pm.material_id !== materialId));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-
     setLoading(true);
 
     try {
+      const projectPayload = {
+        name: projectName,
+        client: clientId,
+        price_multiplier: priceMultiplier,
+        discount: discount,
+        discount_type: discountType,
+        advance_payment_percentage: advancePaymentPercentage,
+        timeline_categories: timelineCategories,
+      };
+
+      let projectId: string;
+
       if (id) {
-        // Update project
-        const { error: projectError } = await supabase
-          .from("projects")
-          .update({ 
-            name: projectName, 
-            client_id: clientId,
-            price_multiplier: priceMultiplier,
-            discount: discount,
-            discount_type: discountType,
-            advance_payment_percentage: advancePaymentPercentage,
-            timeline_categories: timelineCategories
-          })
-          .eq("id", id);
+        await api.patch(`/projects/${id}/`, projectPayload);
+        projectId = id;
 
-        if (projectError) throw projectError;
-
-        // Delete existing rooms and their works (cascade will handle works)
-        await supabase.from("project_rooms").delete().eq("project_id", id);
-
-        // Delete existing project materials
-        await supabase.from("project_materials").delete().eq("project_id", id);
+        // Delete existing rooms and materials
+        await Promise.all([
+          ...existingRoomIds.map((rid) => api.delete(`/project-rooms/${rid}/`)),
+          ...existingMaterialIds.map((mid) => api.delete(`/project-materials/${mid}/`)),
+        ]);
       } else {
-        // Create project
-        const { data: project, error: projectError } = await supabase
-          .from("projects")
-          .insert({
-            name: projectName,
-            client_id: clientId,
-            user_id: user.id,
-            price_multiplier: priceMultiplier,
-            discount: discount,
-            discount_type: discountType,
-            advance_payment_percentage: advancePaymentPercentage,
-            timeline_categories: timelineCategories
-          })
-          .select()
-          .single();
-
-        if (projectError) throw projectError;
-
-        // Use the newly created project id
-        const projectId = project.id;
-
-        // Insert rooms and works
-        for (const room of rooms) {
-          const { data: newRoom, error: roomError } = await supabase
-            .from("project_rooms")
-            .insert({
-              project_id: projectId,
-              name: room.name,
-              room_type_id: room.room_type_id,
-              opening_area: parseFloat(room.opening_area) || null,
-              wall_area: parseFloat(room.wall_area) || null,
-              floor_area: parseFloat(room.floor_area) || null,
-              perimeter: parseFloat(room.perimeter) || null,
-            })
-            .select()
-            .single();
-
-          if (roomError) throw roomError;
-
-          // Insert room works
-          const roomWorks = room.works
-            .filter((w) => w.is_selected)
-            .map((w) => ({
-              project_room_id: newRoom.id,
-              work_id: w.work_id,
-              is_selected: w.is_selected,
-              quantity: w.quantity,
-              custom_price_per_unit: w.custom_price_per_unit,
-              custom_name: w.custom_name,
-            }));
-
-          if (roomWorks.length > 0) {
-            const { error: worksError } = await supabase.from("project_room_works").insert(roomWorks);
-
-            if (worksError) throw worksError;
-          }
-        }
-
-        // Insert project materials
-        if (projectMaterials.length > 0) {
-          const materialsToInsert = projectMaterials.map(pm => ({
-            project_id: projectId,
-            material_id: pm.material_id,
-            quantity: pm.quantity,
-          }));
-
-          const { error: materialsError } = await supabase
-            .from("project_materials")
-            .insert(materialsToInsert);
-
-          if (materialsError) throw materialsError;
-        }
-
-        toast({
-          title: "Success",
-          description: "Project created successfully.",
-        });
-        navigate(`/dashboard/projects/${projectId}`);
-        return;
+        const { data: project } = await api.post("/projects/", projectPayload);
+        projectId = project.id;
       }
 
-      // For update, insert new rooms
+      // Create rooms and their works
       for (const room of rooms) {
-        const { data: newRoom, error: roomError } = await supabase
-          .from("project_rooms")
-          .insert({
-            project_id: id,
-            name: room.name,
-            room_type_id: room.room_type_id,
-            opening_area: parseFloat(room.opening_area) || null,
-            wall_area: parseFloat(room.wall_area) || null,
-            floor_area: parseFloat(room.floor_area) || null,
-            perimeter: parseFloat(room.perimeter) || null,
-          })
-          .select()
-          .single();
+        const { data: newRoom } = await api.post("/project-rooms/", {
+          project: projectId,
+          name: room.name,
+          room_type: room.room_type_id,
+          opening_area: parseFloat(room.opening_area) || null,
+          wall_area: parseFloat(room.wall_area) || null,
+          floor_area: parseFloat(room.floor_area) || null,
+          perimeter: parseFloat(room.perimeter) || null,
+        });
 
-        if (roomError) throw roomError;
-
-        const roomWorks = room.works
-          .filter((w) => w.is_selected)
-          .map((w) => ({
-            project_room_id: newRoom.id,
-            work_id: w.work_id,
-            is_selected: w.is_selected,
-            quantity: w.quantity,
-            custom_price_per_unit: w.custom_price_per_unit,
-            custom_name: w.custom_name,
-          }));
-
-        if (roomWorks.length > 0) {
-          const { error: worksError } = await supabase.from("project_room_works").insert(roomWorks);
-
-          if (worksError) throw worksError;
+        const selectedWorks = room.works.filter((w) => w.is_selected);
+        for (const rw of selectedWorks) {
+          await api.post("/project-room-works/", {
+            project_room: newRoom.id,
+            work: rw.work_id,
+            is_selected: rw.is_selected,
+            quantity: rw.quantity,
+            custom_price_per_unit: rw.custom_price_per_unit,
+            custom_name: rw.custom_name,
+          });
         }
       }
 
-      // Insert project materials
-      if (projectMaterials.length > 0) {
-        const materialsToInsert = projectMaterials.map(pm => ({
-          project_id: id,
-          material_id: pm.material_id,
+      // Create project materials
+      for (const pm of projectMaterials) {
+        await api.post("/project-materials/", {
+          project: projectId,
+          material: pm.material_id,
           quantity: pm.quantity,
-        }));
-
-        const { error: materialsError } = await supabase
-          .from("project_materials")
-          .insert(materialsToInsert);
-
-        if (materialsError) throw materialsError;
+        });
       }
 
-      toast({
-        title: "Success",
-        description: "Project updated successfully.",
-      });
+      toast({ title: "Success", description: id ? "Project updated successfully." : "Project created successfully." });
+
+      if (!id) {
+        navigate(`/dashboard/projects/${projectId}`);
+      }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -576,117 +426,78 @@ const ProjectForm = () => {
 
   const getWorksForRoom = (room: Room): (Work & { roomWork?: RoomWork })[] => {
     if (!room.room_type_id) return [];
-
-    const roomTypeWorks = allWorks.filter((work) =>
-      work.work_room_types?.some((wrt: any) => wrt.room_type_id === room.room_type_id),
-    );
-
-    return roomTypeWorks.map((work) => {
-      const roomWork = room.works.find((w) => w.work_id === work.id);
-      return { ...work, roomWork };
-    });
+    const roomTypeWorks = allWorks.filter((work) => work.room_type_ids.includes(room.room_type_id));
+    return roomTypeWorks.map((work) => ({
+      ...work,
+      roomWork: room.works.find((w) => w.work_id === work.id),
+    }));
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
     if (over && active.id !== over.id) {
       const oldIndex = parseInt(active.id.toString());
       const newIndex = parseInt(over.id.toString());
-
-      const newRooms = arrayMove(rooms, oldIndex, newIndex);
-      setRooms(newRooms);
+      setRooms(arrayMove(rooms, oldIndex, newIndex));
       setActiveTab(newIndex.toString());
     }
   };
 
   const handleTimelineDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
     if (over && active.id !== over.id) {
       const oldIndex = timelineCategories.findIndex((cat) => cat.id === active.id);
       const newIndex = timelineCategories.findIndex((cat) => cat.id === over.id);
-
       setTimelineCategories(arrayMove(timelineCategories, oldIndex, newIndex));
     }
   };
 
+  const getCategoryName = (categoryId: string | null): string => {
+    if (!categoryId) return "Uncategorized";
+    return categories.find((c) => c.id === categoryId)?.name || "Uncategorized";
+  };
+
+  const getCategoryOrder = (categoryId: string | null): number => {
+    if (!categoryId) return 999999;
+    return categories.find((c) => c.id === categoryId)?.display_order ?? 999999;
+  };
+
   const generatePDF = async () => {
     const doc = new jsPDF();
-    
-    // Get tenant info
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("user_id", user?.id)
-      .single();
 
-    let logoUrl = null;
-    let companyDetails = "";
-    let bankDetails = "";
-    
-    if (profileData?.tenant_id) {
-      const { data: tenantData } = await supabase
-        .from("tenants")
-        .select("logo_url, company_details, bank_details")
-        .eq("id", profileData.tenant_id)
-        .single();
-      logoUrl = tenantData?.logo_url;
-      companyDetails = tenantData?.company_details || "";
-      bankDetails = tenantData?.bank_details || "";
-    }
-    
-    // Helper function to convert HTML to plain text and split into lines
+    const logoUrl = (profile as any)?.tenant?.logo_url || null;
+    const companyDetails = (profile as any)?.tenant?.company_details || "";
+    const bankDetails = (profile as any)?.tenant?.bank_details || "";
+
     const htmlToLines = (html: string): string[] => {
       if (!html) return [];
-      
-      // First, convert HTML line breaks to newline characters
       let text = html
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/p>/gi, '\n')
-        .replace(/<\/div>/gi, '\n')
-        .replace(/<\/li>/gi, '\n');
-      
-      // Remove all other HTML tags
-      text = text.replace(/<[^>]*>/g, '');
-      
-      // Decode HTML entities
-      const textarea = document.createElement('textarea');
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p>/gi, "\n")
+        .replace(/<\/div>/gi, "\n")
+        .replace(/<\/li>/gi, "\n");
+      text = text.replace(/<[^>]*>/g, "");
+      const textarea = document.createElement("textarea");
       textarea.innerHTML = text;
-      const decoded = textarea.value;
-      
-      // Split by newlines and filter empty lines
-      return decoded.split('\n').filter(line => line.trim());
+      return textarea.value.split("\n").filter((line) => line.trim());
     };
-    
-    // Get client details
-    const client = clients.find(c => c.id === clientId);
+
+    const client = clients.find((c) => c.id === clientId);
     const clientName = client?.full_name || "N/A";
-    
-    // Generate quotation number based on project ID
-    const quotationNumber = `#${id?.substring(0, 6).toUpperCase() || '000000'}`;
-    
-    // Calculate dates
+    const quotationNumber = `#${id?.substring(0, 6).toUpperCase() || "000000"}`;
     const issuedDate = new Date();
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
-    
-    const formatDate = (date: Date) => {
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    };
-    
-    // Set elegant business font
+
+    const formatDate = (date: Date) =>
+      date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+
     doc.setFont("helvetica");
-    
-    // === PAGE 1: HEADER & INFO ===
-    
-    // Header - Quotation title
     doc.setFontSize(32);
     doc.setTextColor(20, 20, 20);
     doc.setFont("helvetica", "bold");
     doc.text("Quotation", 20, 25);
-    
-    // Company logo on right (fixed height, auto width)
+
     if (logoUrl) {
       try {
         const img = new Image();
@@ -696,211 +507,157 @@ const ProjectForm = () => {
           img.onerror = reject;
           img.src = logoUrl;
         });
-        
-        // Fixed height of 20mm, calculate width based on aspect ratio
         const fixedHeight = 20;
-        const aspectRatio = img.width / img.height;
-        const calculatedWidth = fixedHeight * aspectRatio;
-        
-        // Position from right edge
-        doc.addImage(img, 'PNG', 190 - calculatedWidth, 10, calculatedWidth, fixedHeight);
+        const calculatedWidth = fixedHeight * (img.width / img.height);
+        doc.addImage(img, "PNG", 190 - calculatedWidth, 10, calculatedWidth, fixedHeight);
       } catch (error) {
         console.error("Error loading logo:", error);
       }
     }
-    
-    // Quotation number
+
     doc.setFontSize(11);
     doc.setTextColor(80, 80, 80);
     doc.setFont("helvetica", "normal");
     doc.text(quotationNumber, 20, 32);
-    
-    // Horizontal line
+
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.5);
     doc.line(20, 38, 190, 38);
-    
-    // Project name
+
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
     doc.setFont("helvetica", "bold");
     doc.text("Project", 20, 48);
     doc.setFont("helvetica", "normal");
     doc.text(projectName, 20, 54);
-    
-    // Dates section
+
     doc.setFont("helvetica", "bold");
     doc.text("Issued Date", 115, 48);
     doc.text("Due Date", 160, 48);
     doc.setFont("helvetica", "normal");
     doc.text(formatDate(issuedDate), 115, 54);
     doc.text(formatDate(dueDate), 160, 54);
-    
-    // From section - Company Details
+
     doc.setFont("helvetica", "bold");
     doc.text("From", 20, 68);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    
+
     const companyLines = htmlToLines(companyDetails);
     if (companyLines.length > 0) {
       let yPos = 74;
-      companyLines.forEach(line => {
+      companyLines.forEach((line) => {
         doc.text(line, 20, yPos);
         yPos += 5;
       });
     } else {
-      // Fallback if no company details set
       doc.text("Company details not configured", 20, 74);
     }
-    
-    // To section (right aligned)
+
     doc.setFont("helvetica", "bold");
     doc.text("To", 190, 68, { align: "right" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.text(clientName, 190, 74, { align: "right" });
-    
-    // Horizontal line before items
+
     doc.setDrawColor(220, 220, 220);
     doc.line(20, 110, 190, 110);
-    
+
     let yPosition = 120;
-    
-    // === ITEMS SECTION ===
-    
-    // Rooms and Works with improved formatting
+
     for (const room of rooms) {
-      const roomType = roomTypes.find(rt => rt.id === room.room_type_id);
-      const roomWorks = getWorksForRoom(room).filter(work => 
-        room.works.find(rw => rw.work_id === work.id && rw.is_selected)
+      const roomWorks = getWorksForRoom(room).filter((work) =>
+        room.works.find((rw) => rw.work_id === work.id && rw.is_selected),
       );
-      
       if (roomWorks.length === 0) continue;
-      
-      // Check if we need a new page
+
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 25;
       }
-      
-      // Room header with background
+
       doc.setFillColor(117, 201, 245);
-      doc.rect(20, yPosition - 5, 170, 8, 'F');
+      doc.rect(20, yPosition - 5, 170, 8, "F");
       doc.setFontSize(11);
       doc.setTextColor(30, 30, 30);
       doc.setFont("helvetica", "bold");
       doc.text(room.name, 22, yPosition);
       yPosition += 10;
-      
-      // Group works by category and sort by display_order
-      const groupedWorks = roomWorks.reduce((acc, work) => {
-        const categoryName = work.categories?.name || "Uncategorized";
-        const categoryOrder = work.categories?.display_order ?? 999999;
-        if (!acc[categoryName]) {
-          acc[categoryName] = { works: [], order: categoryOrder };
-        }
-        acc[categoryName].works.push(work);
-        return acc;
-      }, {} as Record<string, { works: typeof roomWorks; order: number }>);
-      
-      const sortedCategories = Object.entries(groupedWorks)
-        .sort(([, a], [, b]) => a.order - b.order);
-      
-      // Display works grouped by category
+
+      const groupedWorks = roomWorks.reduce(
+        (acc, work) => {
+          const catName = getCategoryName(work.category);
+          const catOrder = getCategoryOrder(work.category);
+          if (!acc[catName]) acc[catName] = { works: [], order: catOrder };
+          acc[catName].works.push(work);
+          return acc;
+        },
+        {} as Record<string, { works: typeof roomWorks; order: number }>,
+      );
+
+      const sortedCategories = Object.entries(groupedWorks).sort(([, a], [, b]) => a.order - b.order);
+
       for (const [categoryName, { works }] of sortedCategories) {
-        // Check if we need a new page
         if (yPosition > 240) {
           doc.addPage();
           yPosition = 25;
         }
-        
-        // Category header
+
         doc.setFontSize(10);
         doc.setTextColor(80, 80, 80);
         doc.setFont("helvetica", "bold");
         doc.text(categoryName, 20, yPosition);
         yPosition += 6;
-        
-        // Works table with clean design
-        const tableData = works.map(work => {
-          const roomWork = room.works.find(rw => rw.work_id === work.id);
+
+        const tableData = works.map((work) => {
+          const roomWork = room.works.find((rw) => rw.work_id === work.id);
           const quantity = roomWork?.quantity || 0;
-          // Use override price if available, otherwise use original price with multiplier
-          const pricePerUnit = roomWork?.custom_price_per_unit ?? (work.price_per_unit * priceMultiplier);
-          const total = pricePerUnit * quantity;
-          
+          const pricePerUnit = roomWork?.custom_price_per_unit ?? work.price_per_unit * priceMultiplier;
           return [
             roomWork?.custom_name ?? work.name,
             quantity.toFixed(2),
             work.unit_type,
             `AED ${pricePerUnit.toFixed(2)}`,
-            `AED ${total.toFixed(2)}`
+            `AED ${(pricePerUnit * quantity).toFixed(2)}`,
           ];
         });
-        
+
         autoTable(doc, {
-        startY: yPosition,
-        head: [["Description", "Units", "Type", "Price", "Amount"]],
-        body: tableData,
-        theme: "plain",
-        headStyles: { 
-          fillColor: [250, 250, 250],
-          textColor: [60, 60, 60],
-          fontStyle: "bold",
-          fontSize: 9,
-          lineWidth: 0,
-          lineColor: [220, 220, 220]
-        },
-        styles: { 
-          fontSize: 9,
-          cellPadding: 3,
-          font: "helvetica",
-          textColor: [60, 60, 60]
-        },
-        columnStyles: {
-          0: { cellWidth: 80 },
-          1: { cellWidth: 20, halign: "right" },
-          2: { cellWidth: 20, halign: "center" },
-          3: { cellWidth: 25, halign: "right" },
-          4: { cellWidth: 25, halign: "right" }
-        },
-        margin: { left: 20, right: 20 },
-        didDrawCell: (data) => {
-          // Add subtle borders
-          if (data.section === 'body') {
-            doc.setDrawColor(240, 240, 240);
-            doc.setLineWidth(0.1);
-          }
-        }
+          startY: yPosition,
+          head: [["Description", "Units", "Type", "Price", "Amount"]],
+          body: tableData,
+          theme: "plain",
+          headStyles: { fillColor: [250, 250, 250], textColor: [60, 60, 60], fontStyle: "bold", fontSize: 9, lineWidth: 0 },
+          styles: { fontSize: 9, cellPadding: 3, font: "helvetica", textColor: [60, 60, 60] },
+          columnStyles: {
+            0: { cellWidth: 80 },
+            1: { cellWidth: 20, halign: "right" },
+            2: { cellWidth: 20, halign: "center" },
+            3: { cellWidth: 25, halign: "right" },
+            4: { cellWidth: 25, halign: "right" },
+          },
+          margin: { left: 20, right: 20 },
         });
-        
+
         yPosition = (doc as any).lastAutoTable.finalY + 6;
       }
-      
-      // Room subtotal with light background
+
       doc.setFillColor(250, 252, 255);
-      doc.rect(120, yPosition - 2, 70, 7, 'F');
+      doc.rect(120, yPosition - 2, 70, 7, "F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(50, 50, 50);
-      const roomSubtotal = calculateRoomSubtotal(room);
       doc.text("Room Subtotal:", 125, yPosition + 2);
-      doc.text(`AED ${roomSubtotal.toFixed(2)}`, 185, yPosition + 2, { align: "right" });
+      doc.text(`AED ${calculateRoomSubtotal(room).toFixed(2)}`, 185, yPosition + 2, { align: "right" });
       yPosition += 12;
     }
-    
-    // === SUMMARY SECTION ===
-    
-    // Add new page if needed for summary
+
     if (yPosition > 220) {
       doc.addPage();
       yPosition = 25;
     }
-    
+
     yPosition += 8;
-    
-    // Section header - minimal modern style
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
     doc.setFont("helvetica", "bold");
@@ -908,82 +665,53 @@ const ProjectForm = () => {
     doc.setDrawColor(200, 200, 200);
     doc.line(20, yPosition + 2, 190, yPosition + 2);
     yPosition += 8;
-    
-    // Create rooms summary table data
+
     const roomsSummaryData = rooms
-      .filter(room => {
-        const roomWorks = getWorksForRoom(room).filter(work => 
-          room.works.find(rw => rw.work_id === work.id && rw.is_selected)
-        );
-        return roomWorks.length > 0;
-      })
-      .map(room => {
-        const subtotal = calculateRoomSubtotal(room);
-        return [room.name, `AED ${subtotal.toFixed(2)}`];
-      });
-    
+      .filter((room) => getWorksForRoom(room).some((w) => room.works.find((rw) => rw.work_id === w.id && rw.is_selected)))
+      .map((room) => [room.name, `AED ${calculateRoomSubtotal(room).toFixed(2)}`]);
+
     if (roomsSummaryData.length > 0) {
       autoTable(doc, {
         startY: yPosition,
         body: roomsSummaryData,
         theme: "plain",
-        styles: { 
-          fontSize: 9,
-          cellPadding: 2,
-          font: "helvetica",
-          textColor: [70, 70, 70]
-        },
-        columnStyles: {
-          0: { cellWidth: 130 },
-          1: { cellWidth: 40, halign: "right", fontStyle: "bold", textColor: [40, 40, 40] }
-        },
-        margin: { left: 20, right: 20 }
+        styles: { fontSize: 9, cellPadding: 2, font: "helvetica", textColor: [70, 70, 70] },
+        columnStyles: { 0: { cellWidth: 130 }, 1: { cellWidth: 40, halign: "right", fontStyle: "bold", textColor: [40, 40, 40] } },
+        margin: { left: 20, right: 20 },
       });
-      
       yPosition = (doc as any).lastAutoTable.finalY + 6;
     }
-    
-    // === FINANCIAL SUMMARY ===
-    
-    // Add new page if needed for summary
+
     if (yPosition > 230) {
       doc.addPage();
       yPosition = 25;
     }
-    
+
     yPosition += 5;
-    
     const subtotal = calculateProjectTotal();
-    const discountAmount = discountType === "percentage" 
-      ? subtotal * (discount / 100)
-      : discount;
+    const discountAmount = discountType === "percentage" ? subtotal * (discount / 100) : discount;
     const afterDiscount = subtotal - discountAmount;
     const vat = afterDiscount * 0.05;
     const grandTotal = afterDiscount + vat;
     const advanceAmount = grandTotal * (advancePaymentPercentage / 100);
     const remainingPercentage = 100 - advancePaymentPercentage;
-    
-    // === PAYMENT TERMS (Left side) ===
+
     const leftColumnX = 20;
     const leftColumnWidth = 90;
     const paymentTermsY = yPosition;
-    
-    // Payment Terms Box
+
     doc.setFillColor(252, 252, 253);
-    doc.roundedRect(leftColumnX, paymentTermsY, leftColumnWidth, 65, 2, 2, 'F');
-    
-    // Title
+    doc.roundedRect(leftColumnX, paymentTermsY, leftColumnWidth, 65, 2, 2, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(30, 30, 30);
     doc.text("Payment Terms", leftColumnX + 5, paymentTermsY + 8);
-    
+
     let paymentY = paymentTermsY + 16;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(60, 60, 60);
-    
-    // Bullet 1: Advance Payment
+
     doc.setFont("helvetica", "bold");
     doc.text("•", leftColumnX + 5, paymentY);
     doc.text("Advance Payment:", leftColumnX + 8, paymentY);
@@ -991,12 +719,11 @@ const ProjectForm = () => {
     paymentY += 4;
     const advanceText = doc.splitTextToSize(
       `${advancePaymentPercentage}% of the total quotation amount is due within 3 business days from the date of signing the quotation or agreement.`,
-      leftColumnWidth - 12
+      leftColumnWidth - 12,
     );
     doc.text(advanceText, leftColumnX + 8, paymentY);
     paymentY += advanceText.length * 4 + 3;
-    
-    // Bullet 2: Progress Payments
+
     doc.setFont("helvetica", "bold");
     doc.text("•", leftColumnX + 5, paymentY);
     doc.text("Progress Payments:", leftColumnX + 8, paymentY);
@@ -1004,12 +731,11 @@ const ProjectForm = () => {
     paymentY += 4;
     const progressText = doc.splitTextToSize(
       `The remaining ${remainingPercentage}% shall be paid after completion and approval of the invoiced works as per the issued Certificate of Completion (CoC).`,
-      leftColumnWidth - 12
+      leftColumnWidth - 12,
     );
     doc.text(progressText, leftColumnX + 8, paymentY);
     paymentY += progressText.length * 4 + 3;
-    
-    // Bullet 3: Currency & Method
+
     doc.setFont("helvetica", "bold");
     doc.text("•", leftColumnX + 5, paymentY);
     doc.text("Currency & Method:", leftColumnX + 8, paymentY);
@@ -1017,183 +743,152 @@ const ProjectForm = () => {
     paymentY += 4;
     const currencyText = doc.splitTextToSize(
       "All payments must be made in United Arab Emirates Dirhams (AED) by bank transfer or cash deposit to the Contractor's designated account.",
-      leftColumnWidth - 12
+      leftColumnWidth - 12,
     );
     doc.text(currencyText, leftColumnX + 8, paymentY);
-    
-    // Summary box (Right side)
+
     const rightColumnX = 115;
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.5);
     doc.line(rightColumnX, yPosition, 190, yPosition);
     yPosition += 8;
-    
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    
     doc.text("Subtotal:", rightColumnX + 5, yPosition);
     doc.text(`AED ${subtotal.toFixed(2)}`, 185, yPosition, { align: "right" });
     yPosition += 7;
-    
+
     if (discount > 0) {
       doc.text(`Discount${discountType === "percentage" ? ` (${discount}%)` : ""}:`, rightColumnX + 5, yPosition);
       doc.text(`-AED ${discountAmount.toFixed(2)}`, 185, yPosition, { align: "right" });
       yPosition += 7;
     }
-    
+
     doc.text("VAT (5%):", rightColumnX + 5, yPosition);
     doc.text(`AED ${vat.toFixed(2)}`, 185, yPosition, { align: "right" });
     yPosition += 10;
-    
-    // Grand total with background
+
     doc.setFillColor(245, 247, 250);
-    doc.rect(rightColumnX, yPosition - 5, 75, 10, 'F');
+    doc.rect(rightColumnX, yPosition - 5, 75, 10, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(20, 20, 20);
     doc.text("Total Amount:", rightColumnX + 5, yPosition + 2);
     doc.text(`AED ${grandTotal.toFixed(2)}`, 185, yPosition + 2, { align: "right" });
     yPosition += 10;
-    
-    // Advance payment amount
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
     doc.text(`Advance (${advancePaymentPercentage}%):`, rightColumnX + 5, yPosition);
     doc.text(`AED ${advanceAmount.toFixed(2)}`, 185, yPosition, { align: "right" });
     yPosition += 5;
-    
     doc.text(`Balance (${remainingPercentage}%):`, rightColumnX + 5, yPosition);
     doc.text(`AED ${(grandTotal - advanceAmount).toFixed(2)}`, 185, yPosition, { align: "right" });
-    
-    // Ensure timeline starts after payment terms box (which is 65 units tall)
+
     const summaryEndY = yPosition;
     const paymentTermsEndY = paymentTermsY + 65;
     yPosition = Math.max(summaryEndY, paymentTermsEndY) + 18;
-    
-    // === PROJECT TIMELINE ===
+
     if (timelineCategories.length > 0) {
-      // Add new page for timeline if needed
       if (yPosition > 180) {
         doc.addPage();
         yPosition = 25;
       }
-      
-      // Timeline title
+
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
       doc.text("Project Timeline", 20, yPosition);
       yPosition += 10;
-      
-      // Calculate total duration and dates
+
       const totalDays = timelineCategories.reduce((sum, cat) => sum + cat.days, 0);
       let cumulativeDays = 0;
-      
-      // Chart dimensions
       const chartStartX = 20;
       const chartWidth = 170;
       const barHeight = 12;
       const spacing = 4;
       const labelWidth = 65;
       const chartAreaWidth = chartWidth - labelWidth;
-      
-      // Draw each phase
+
+      const colors = [
+        [59, 130, 246],
+        [34, 197, 94],
+        [249, 115, 22],
+        [168, 85, 247],
+        [236, 72, 153],
+      ];
+
       timelineCategories.forEach((phase, index) => {
-        // Check if we need a new page
         if (yPosition + barHeight + spacing > 270) {
           doc.addPage();
           yPosition = 25;
-          
-          // Redraw title on new page
           doc.setFontSize(14);
           doc.setFont("helvetica", "bold");
           doc.text("Project Timeline (continued)", 20, yPosition);
           yPosition += 10;
         }
-        
-        // Calculate dates for this phase
+
         const startDate = new Date(issuedDate);
         startDate.setDate(startDate.getDate() + cumulativeDays);
         const endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + phase.days - 1);
-        
-        // Phase name and dates
+
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(50, 50, 50);
         doc.text(phase.name, chartStartX, yPosition + 4);
-        
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
         doc.text(`${formatDate(startDate)} - ${formatDate(endDate)}`, chartStartX, yPosition + 9);
-        
-        // Timeline bar
+
         const barStartX = chartStartX + labelWidth;
         const barWidth = (phase.days / totalDays) * chartAreaWidth;
-        
-        // Draw bar background
+
         doc.setFillColor(240, 242, 245);
-        doc.roundedRect(barStartX, yPosition, chartAreaWidth, barHeight, 1, 1, 'F');
-        
-        // Draw progress bar with gradient-like effect
-        const hue = (index * 60) % 360;
-        const colors = [
-          [59, 130, 246],   // Blue
-          [34, 197, 94],    // Green
-          [249, 115, 22],   // Orange
-          [168, 85, 247],   // Purple
-          [236, 72, 153],   // Pink
-        ];
+        doc.roundedRect(barStartX, yPosition, chartAreaWidth, barHeight, 1, 1, "F");
+
         const color = colors[index % colors.length];
-        
         doc.setFillColor(color[0], color[1], color[2]);
-        doc.roundedRect(barStartX, yPosition, barWidth, barHeight, 1, 1, 'F');
-        
-        // Add days label on the bar
+        doc.roundedRect(barStartX, yPosition, barWidth, barHeight, 1, 1, "F");
+
+        const daysText = `${phase.days} ${phase.days === 1 ? "day" : "days"}`;
         doc.setFontSize(8);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(255, 255, 255);
-        const daysText = `${phase.days} ${phase.days === 1 ? 'day' : 'days'}`;
         const textWidth = doc.getTextWidth(daysText);
-        
-        // Only show text if bar is wide enough
         if (barWidth > textWidth + 4) {
-          doc.text(daysText, barStartX + barWidth / 2, yPosition + 7.5, { align: 'center' });
+          doc.text(daysText, barStartX + barWidth / 2, yPosition + 7.5, { align: "center" });
         } else {
-          // Show days outside the bar if too narrow
           doc.setTextColor(80, 80, 80);
           doc.text(daysText, barStartX + barWidth + 2, yPosition + 7.5);
         }
-        
+
         yPosition += barHeight + spacing;
         cumulativeDays += phase.days;
       });
-      
-      // Total duration summary
+
       yPosition += 4;
       doc.setFillColor(248, 250, 252);
-      doc.roundedRect(chartStartX, yPosition, chartWidth, 10, 2, 2, 'F');
-      
+      doc.roundedRect(chartStartX, yPosition, chartWidth, 10, 2, 2, "F");
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
       doc.text("Total Project Duration:", chartStartX + 5, yPosition + 6.5);
-      doc.text(`${totalDays} business days`, chartStartX + chartWidth - 5, yPosition + 6.5, { align: 'right' });
-      
+      doc.text(`${totalDays} business days`, chartStartX + chartWidth - 5, yPosition + 6.5, { align: "right" });
       yPosition += 18;
     }
-    
-    // === NOTES SECTION ===
+
     if (yPosition > 250) {
       doc.addPage();
       yPosition = 25;
     }
-    
+
     doc.setFillColor(252, 252, 253);
-    doc.roundedRect(20, yPosition, 170, 35, 2, 2, 'F');
+    doc.roundedRect(20, yPosition, 170, 35, 2, 2, "F");
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(70, 70, 70);
@@ -1201,131 +896,96 @@ const ProjectForm = () => {
     doc.text("The prices (including custom made furniture) may be adjusted after finishing the design project or", 23, yPosition + 10);
     doc.text("during work execution or after final decision on the finishing materials and accessories.", 23, yPosition + 15);
     doc.text("The validity period for this estimate is 30 days.", 23, yPosition + 20);
-    
     yPosition += 43;
-    
-    // === PAYMENT METHOD & SIGNATURE ===
+
     if (yPosition > 200) {
       doc.addPage();
       yPosition = 25;
     }
-    
-    // Bank Details
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(40, 40, 40);
     doc.text("Bank Details", 20, yPosition);
     yPosition += 7;
-    
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(70, 70, 70);
-    
     const bankLines = htmlToLines(bankDetails);
     if (bankLines.length > 0) {
-      bankLines.forEach(line => {
+      bankLines.forEach((line) => {
         doc.text(line, 20, yPosition);
         yPosition += 5;
       });
     } else {
-      // Fallback if no bank details set
       doc.text("Bank details not configured", 20, yPosition);
       yPosition += 5;
     }
-    
-    // Signature area (right side)
+
     const signatureY = yPosition - 10;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text("Authorized Signature", 190, signatureY, { align: "right" });
-    
-    // Signature line
     doc.setDrawColor(180, 180, 180);
     doc.line(130, signatureY + 20, 190, signatureY + 20);
-    
-    // === PRELIMINARY MATERIALS COST ===
+
     if (projectMaterials.length > 0) {
       yPosition = signatureY + 35;
-      
-      // Add new page if needed
       if (yPosition > 200) {
         doc.addPage();
         yPosition = 25;
       }
-      
-      // Materials section title
+
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
       doc.text("Preliminary Materials Cost", 20, yPosition);
       yPosition += 10;
-      
-      // Materials table
-      const materialsData = projectMaterials.map(pm => {
-        const material = allMaterials.find(m => m.id === pm.material_id);
-        if (!material) return null;
-        const total = material.price_per_unit * pm.quantity;
-        return [
-          material.name,
-          material.unit_type,
-          `AED ${material.price_per_unit.toFixed(2)}`,
-          pm.quantity.toFixed(2),
-          `AED ${total.toFixed(2)}`
-        ];
-      }).filter(Boolean);
-      
+
+      const materialsData = projectMaterials
+        .map((pm) => {
+          const material = allMaterials.find((m) => m.id === pm.material_id);
+          if (!material) return null;
+          return [
+            material.name,
+            material.unit_type,
+            `AED ${Number(material.price_per_unit).toFixed(2)}`,
+            pm.quantity.toFixed(2),
+            `AED ${(Number(material.price_per_unit) * pm.quantity).toFixed(2)}`,
+          ];
+        })
+        .filter(Boolean);
+
       autoTable(doc, {
         startY: yPosition,
-        head: [['Material', 'Unit', 'Price/Unit', 'Quantity', 'Total']],
+        head: [["Material", "Unit", "Price/Unit", "Quantity", "Total"]],
         body: materialsData as any,
-        theme: 'grid',
-        headStyles: {
-          fillColor: [59, 130, 246],
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          fontSize: 10,
-        },
-        styles: {
-          fontSize: 9,
-          cellPadding: 3,
-        },
-        columnStyles: {
-          0: { cellWidth: 70 },
-          1: { cellWidth: 20, halign: 'center' },
-          2: { cellWidth: 30, halign: 'right' },
-          3: { cellWidth: 30, halign: 'right' },
-          4: { cellWidth: 35, halign: 'right' },
-        },
+        theme: "grid",
+        headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 10 },
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 20, halign: "center" }, 2: { cellWidth: 30, halign: "right" }, 3: { cellWidth: 30, halign: "right" }, 4: { cellWidth: 35, halign: "right" } },
       });
-      
+
       yPosition = (doc as any).lastAutoTable.finalY + 8;
-      
-      // Materials total
       const materialsTotal = calculateMaterialsTotal();
       doc.setFillColor(245, 247, 250);
-      doc.rect(120, yPosition, 70, 10, 'F');
+      doc.rect(120, yPosition, 70, 10, "F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(20, 20, 20);
       doc.text("Materials Total:", 125, yPosition + 6.5);
       doc.text(`AED ${materialsTotal.toFixed(2)}`, 185, yPosition + 6.5, { align: "right" });
-      
       yPosition += 18;
-      
-      // Disclaimer
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
       doc.text("Note: Materials cost is preliminary and subject to change based on final selection and availability.", 20, yPosition);
     }
-    
-    // Save PDF
-    doc.save(`Quotation_${quotationNumber}_${projectName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
-    
-    toast({
-      title: "PDF Generated",
-      description: "Your quotation has been downloaded successfully.",
-    });
+
+    doc.save(`Quotation_${quotationNumber}_${projectName.replace(/[^a-z0-9]/gi, "_")}.pdf`);
+    toast({ title: "PDF Generated", description: "Your quotation has been downloaded successfully." });
   };
 
   return (
@@ -1376,10 +1036,7 @@ const ProjectForm = () => {
         {rooms.length > 0 && (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <SortableContext
-                items={rooms.map((_, index) => index.toString())}
-                strategy={horizontalListSortingStrategy}
-              >
+              <SortableContext items={rooms.map((_, index) => index.toString())} strategy={horizontalListSortingStrategy}>
                 <TabsList className="w-full justify-start overflow-x-auto">
                   {rooms.map((room, index) => (
                     <SortableTab key={index} id={index.toString()} value={index.toString()}>
@@ -1434,39 +1091,19 @@ const ProjectForm = () => {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
                           <Label>Wall Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.wall_area}
-                            onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)}
-                          />
+                          <Input type="number" step="0.01" value={room.wall_area} onChange={(e) => updateRoom(roomIndex, "wall_area", e.target.value)} />
                         </div>
                         <div className="space-y-2">
                           <Label>Opening Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.opening_area}
-                            onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)}
-                          />
+                          <Input type="number" step="0.01" value={room.opening_area} onChange={(e) => updateRoom(roomIndex, "opening_area", e.target.value)} />
                         </div>
                         <div className="space-y-2">
                           <Label>Floor Area (m²)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.floor_area}
-                            onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)}
-                          />
+                          <Input type="number" step="0.01" value={room.floor_area} onChange={(e) => updateRoom(roomIndex, "floor_area", e.target.value)} />
                         </div>
                         <div className="space-y-2">
                           <Label>Perimeter (m)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={room.perimeter}
-                            onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)}
-                          />
+                          <Input type="number" step="0.01" value={room.perimeter} onChange={(e) => updateRoom(roomIndex, "perimeter", e.target.value)} />
                         </div>
                       </div>
 
@@ -1476,139 +1113,114 @@ const ProjectForm = () => {
                           <Accordion type="multiple" className="w-full space-y-2">
                             {(() => {
                               const worksForRoom = getWorksForRoom(room);
-                              const groupedWorks = worksForRoom.reduce((acc, work) => {
-                                const categoryName = work.categories?.name || "Uncategorized";
-                                const categoryOrder = work.categories?.display_order ?? 999999;
-                                if (!acc[categoryName]) {
-                                  acc[categoryName] = { works: [], order: categoryOrder };
-                                }
-                                acc[categoryName].works.push(work);
-                                return acc;
-                              }, {} as Record<string, { works: typeof worksForRoom; order: number }>);
+                              const groupedWorks = worksForRoom.reduce(
+                                (acc, work) => {
+                                  const catName = getCategoryName(work.category);
+                                  const catOrder = getCategoryOrder(work.category);
+                                  if (!acc[catName]) acc[catName] = { works: [], order: catOrder };
+                                  acc[catName].works.push(work);
+                                  return acc;
+                                },
+                                {} as Record<string, { works: typeof worksForRoom; order: number }>,
+                              );
 
                               return Object.entries(groupedWorks)
                                 .sort(([, a], [, b]) => a.order - b.order)
                                 .map(([categoryName, { works }]) => (
-                                <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg">
-                                  <AccordionTrigger className="hover:no-underline px-4 py-2">
-                                    <span className="font-semibold text-sm">{categoryName}</span>
-                                  </AccordionTrigger>
-                                  <AccordionContent className="px-4 pb-4">
-                                    <div className="border rounded-lg overflow-hidden">
-                                      <Table>
-                                        <TableHeader>
-                                          <TableRow>
-                                            <TableHead className="w-[50px]">Select</TableHead>
-                                            <TableHead>Work</TableHead>
-                                            <TableHead>Base Price</TableHead>
-                                            <TableHead>Custom Price</TableHead>
-                                            <TableHead>Unit</TableHead>
-                                            <TableHead>Quantity</TableHead>
-                                            <TableHead>Subtotal</TableHead>
-                                          </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                          {works.map((work) => {
-                                             const roomWork = work.roomWork || {
-                                               work_id: work.id,
-                                               is_selected: false,
-                                               quantity: 0,
-                                               custom_price_per_unit: null,
-                                               custom_name: null,
-                                             };
-                                            const effectivePrice = roomWork.custom_price_per_unit ?? (work.price_per_unit * priceMultiplier);
-                                            return (
-                                              <TableRow key={work.id}>
-                                                <TableCell>
-                                                  <Checkbox
-                                                    checked={roomWork.is_selected}
-                                                    onCheckedChange={(checked) =>
-                                                      updateRoomWork(roomIndex, work.id, "is_selected", checked)
-                                                    }
-                                                  />
-                                                </TableCell>
-                                                <TableCell>
-                                                  <Input
-                                                    type="text"
-                                                    value={roomWork.custom_name ?? work.name}
-                                                    onChange={(e) =>
-                                                      updateRoomWork(
-                                                        roomIndex,
-                                                        work.id,
-                                                        "custom_name",
-                                                        e.target.value || null,
-                                                      )
-                                                    }
-                                                    className="w-full"
-                                                    placeholder={work.name}
-                                                  />
-                                                </TableCell>
-                                                <TableCell>
-                                                  <span className="text-muted-foreground text-sm">
-                                                    AED {(work.price_per_unit * priceMultiplier).toFixed(2)}
-                                                  </span>
-                                                </TableCell>
-                                                <TableCell>
-                                                  <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder="Override"
-                                                    value={roomWork.custom_price_per_unit ?? ""}
-                                                    onChange={(e) =>
-                                                      updateRoomWork(
-                                                        roomIndex,
-                                                        work.id,
-                                                        "custom_price_per_unit",
-                                                        e.target.value ? parseFloat(e.target.value) : null,
-                                                      )
-                                                    }
-                                                    disabled={!roomWork.is_selected}
-                                                    className="w-28"
-                                                  />
-                                                </TableCell>
-                                                <TableCell>{work.unit_type}</TableCell>
-                                                <TableCell>
-                                                  <div className="flex items-center gap-2">
+                                  <AccordionItem key={categoryName} value={categoryName} className="border rounded-lg">
+                                    <AccordionTrigger className="hover:no-underline px-4 py-2">
+                                      <span className="font-semibold text-sm">{categoryName}</span>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="px-4 pb-4">
+                                      <div className="border rounded-lg overflow-hidden">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow>
+                                              <TableHead className="w-[50px]">Select</TableHead>
+                                              <TableHead>Work</TableHead>
+                                              <TableHead>Base Price</TableHead>
+                                              <TableHead>Custom Price</TableHead>
+                                              <TableHead>Unit</TableHead>
+                                              <TableHead>Quantity</TableHead>
+                                              <TableHead>Subtotal</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {works.map((work) => {
+                                              const roomWork = work.roomWork || {
+                                                work_id: work.id,
+                                                is_selected: false,
+                                                quantity: 0,
+                                                custom_price_per_unit: null,
+                                                custom_name: null,
+                                              };
+                                              const effectivePrice = roomWork.custom_price_per_unit ?? work.price_per_unit * priceMultiplier;
+                                              return (
+                                                <TableRow key={work.id}>
+                                                  <TableCell>
+                                                    <Checkbox
+                                                      checked={roomWork.is_selected}
+                                                      onCheckedChange={(checked) => updateRoomWork(roomIndex, work.id, "is_selected", checked)}
+                                                    />
+                                                  </TableCell>
+                                                  <TableCell>
+                                                    <Input
+                                                      type="text"
+                                                      value={roomWork.custom_name ?? work.name}
+                                                      onChange={(e) => updateRoomWork(roomIndex, work.id, "custom_name", e.target.value || null)}
+                                                      className="w-full"
+                                                      placeholder={work.name}
+                                                    />
+                                                  </TableCell>
+                                                  <TableCell>
+                                                    <span className="text-muted-foreground text-sm">
+                                                      AED {(work.price_per_unit * priceMultiplier).toFixed(2)}
+                                                    </span>
+                                                  </TableCell>
+                                                  <TableCell>
                                                     <Input
                                                       type="number"
                                                       step="0.01"
-                                                      value={roomWork.quantity}
-                                                      onChange={(e) =>
-                                                        updateRoomWork(
-                                                          roomIndex,
-                                                          work.id,
-                                                          "quantity",
-                                                          parseFloat(e.target.value) || 0,
-                                                        )
-                                                      }
+                                                      placeholder="Override"
+                                                      value={roomWork.custom_price_per_unit ?? ""}
+                                                      onChange={(e) => updateRoomWork(roomIndex, work.id, "custom_price_per_unit", e.target.value ? parseFloat(e.target.value) : null)}
                                                       disabled={!roomWork.is_selected}
-                                                      className="w-24"
+                                                      className="w-28"
                                                     />
-                                                    <Button
-                                                      type="button"
-                                                      variant="ghost"
-                                                      size="icon"
-                                                      onClick={() => {
-                                                        const calculatedQty = calculateDefaultQuantity(work, room);
-                                                        updateRoomWork(roomIndex, work.id, "quantity", calculatedQty);
-                                                      }}
-                                                      disabled={!roomWork.is_selected}
-                                                      className="h-10 w-10"
-                                                    >
-                                                      <Calculator className="h-4 w-4" />
-                                                    </Button>
-                                                  </div>
-                                                </TableCell>
-                                                <TableCell>AED {(effectivePrice * roomWork.quantity).toFixed(2)}</TableCell>
-                                              </TableRow>
-                                            );
-                                          })}
-                                        </TableBody>
-                                      </Table>
-                                    </div>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              ));
+                                                  </TableCell>
+                                                  <TableCell>{work.unit_type}</TableCell>
+                                                  <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                      <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={roomWork.quantity}
+                                                        onChange={(e) => updateRoomWork(roomIndex, work.id, "quantity", parseFloat(e.target.value) || 0)}
+                                                        disabled={!roomWork.is_selected}
+                                                        className="w-24"
+                                                      />
+                                                      <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => updateRoomWork(roomIndex, work.id, "quantity", calculateDefaultQuantity(work, room))}
+                                                        disabled={!roomWork.is_selected}
+                                                        className="h-10 w-10"
+                                                      >
+                                                        <Calculator className="h-4 w-4" />
+                                                      </Button>
+                                                    </div>
+                                                  </TableCell>
+                                                  <TableCell>AED {(effectivePrice * roomWork.quantity).toFixed(2)}</TableCell>
+                                                </TableRow>
+                                              );
+                                            })}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                ));
                             })()}
                           </Accordion>
                           <div className="flex justify-end pt-2">
@@ -1677,7 +1289,7 @@ const ProjectForm = () => {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2 pt-4 border-t">
               <div className="flex justify-between items-center text-lg">
                 <span>Subtotal (with {priceMultiplier}x multiplier):</span>
@@ -1686,53 +1298,41 @@ const ProjectForm = () => {
               <div className="flex justify-between items-center text-lg">
                 <span>After Discount{discountType === "percentage" ? ` (${discount}%)` : ""}:</span>
                 <span>AED {(() => {
-                  const subtotal = calculateProjectTotal();
-                  const discountAmount = discountType === "percentage" 
-                    ? subtotal * (discount / 100)
-                    : discount;
-                  return (subtotal - discountAmount).toFixed(2);
+                  const s = calculateProjectTotal();
+                  const d = discountType === "percentage" ? s * (discount / 100) : discount;
+                  return (s - d).toFixed(2);
                 })()}</span>
               </div>
               <div className="flex justify-between items-center text-lg">
                 <span>VAT (5%):</span>
                 <span>AED {(() => {
-                  const subtotal = calculateProjectTotal();
-                  const discountAmount = discountType === "percentage" 
-                    ? subtotal * (discount / 100)
-                    : discount;
-                  return ((subtotal - discountAmount) * 0.05).toFixed(2);
+                  const s = calculateProjectTotal();
+                  const d = discountType === "percentage" ? s * (discount / 100) : discount;
+                  return ((s - d) * 0.05).toFixed(2);
                 })()}</span>
               </div>
               <div className="flex justify-between items-center text-2xl font-bold pt-2 border-t">
                 <span>Grand Total:</span>
                 <span>AED {(() => {
-                  const subtotal = calculateProjectTotal();
-                  const discountAmount = discountType === "percentage" 
-                    ? subtotal * (discount / 100)
-                    : discount;
-                  return ((subtotal - discountAmount) * 1.05).toFixed(2);
+                  const s = calculateProjectTotal();
+                  const d = discountType === "percentage" ? s * (discount / 100) : discount;
+                  return ((s - d) * 1.05).toFixed(2);
                 })()}</span>
               </div>
               <div className="flex justify-between items-center text-lg text-muted-foreground pt-2">
                 <span>Advance Payment ({advancePaymentPercentage}%):</span>
                 <span>AED {(() => {
-                  const subtotal = calculateProjectTotal();
-                  const discountAmount = discountType === "percentage" 
-                    ? subtotal * (discount / 100)
-                    : discount;
-                  const grandTotal = (subtotal - discountAmount) * 1.05;
-                  return (grandTotal * (advancePaymentPercentage / 100)).toFixed(2);
+                  const s = calculateProjectTotal();
+                  const d = discountType === "percentage" ? s * (discount / 100) : discount;
+                  return ((s - d) * 1.05 * (advancePaymentPercentage / 100)).toFixed(2);
                 })()}</span>
               </div>
               <div className="flex justify-between items-center text-lg text-muted-foreground">
                 <span>Remaining ({100 - advancePaymentPercentage}%):</span>
                 <span>AED {(() => {
-                  const subtotal = calculateProjectTotal();
-                  const discountAmount = discountType === "percentage" 
-                    ? subtotal * (discount / 100)
-                    : discount;
-                  const grandTotal = (subtotal - discountAmount) * 1.05;
-                  return (grandTotal * ((100 - advancePaymentPercentage) / 100)).toFixed(2);
+                  const s = calculateProjectTotal();
+                  const d = discountType === "percentage" ? s * (discount / 100) : discount;
+                  return ((s - d) * 1.05 * ((100 - advancePaymentPercentage) / 100)).toFixed(2);
                 })()}</span>
               </div>
             </div>
@@ -1760,20 +1360,17 @@ const ProjectForm = () => {
                     <CommandList>
                       <CommandGroup>
                         {allMaterials
-                          .filter(m => !projectMaterials.some(pm => pm.material_id === m.id))
+                          .filter((m) => !projectMaterials.some((pm) => pm.material_id === m.id))
                           .map((material) => (
-                          <CommandItem
-                            key={material.id}
-                            onSelect={() => addMaterial(material.id)}
-                          >
-                            <div className="flex justify-between w-full">
-                              <span>{material.name}</span>
-                              <span className="text-muted-foreground">
-                                AED {material.price_per_unit.toFixed(2)}/{material.unit_type}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
+                            <CommandItem key={material.id} onSelect={() => addMaterial(material.id)}>
+                              <div className="flex justify-between w-full">
+                                <span>{material.name}</span>
+                                <span className="text-muted-foreground">
+                                  AED {Number(material.price_per_unit).toFixed(2)}/{material.unit_type}
+                                </span>
+                              </div>
+                            </CommandItem>
+                          ))}
                       </CommandGroup>
                     </CommandList>
                   </Command>
@@ -1796,14 +1393,13 @@ const ProjectForm = () => {
                   </TableHeader>
                   <TableBody>
                     {projectMaterials.map((pm) => {
-                      const material = allMaterials.find(m => m.id === pm.material_id);
+                      const material = allMaterials.find((m) => m.id === pm.material_id);
                       if (!material) return null;
-                      const total = material.price_per_unit * pm.quantity;
                       return (
                         <TableRow key={pm.material_id}>
                           <TableCell>{material.name}</TableCell>
                           <TableCell>{material.unit_type}</TableCell>
-                          <TableCell>AED {material.price_per_unit.toFixed(2)}</TableCell>
+                          <TableCell>AED {Number(material.price_per_unit).toFixed(2)}</TableCell>
                           <TableCell>
                             <Input
                               type="number"
@@ -1814,14 +1410,11 @@ const ProjectForm = () => {
                               className="w-24"
                             />
                           </TableCell>
-                          <TableCell className="text-right">AED {total.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            AED {(Number(material.price_per_unit) * pm.quantity).toFixed(2)}
+                          </TableCell>
                           <TableCell>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeMaterial(pm.material_id)}
-                            >
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(pm.material_id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -1853,15 +1446,8 @@ const ProjectForm = () => {
             <CardTitle>Project Timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleTimelineDragEnd}
-            >
-              <SortableContext
-                items={timelineCategories.map((cat) => cat.id)}
-                strategy={verticalListSortingStrategy}
-              >
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTimelineDragEnd}>
+              <SortableContext items={timelineCategories.map((cat) => cat.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-3">
                   {timelineCategories.map((category, index) => (
                     <SortableTimelineItem
@@ -1873,24 +1459,17 @@ const ProjectForm = () => {
                         updated[index] = { ...updated[index], [field]: value };
                         setTimelineCategories(updated);
                       }}
-                      onDelete={() => {
-                        setTimelineCategories(timelineCategories.filter((_, i) => i !== index));
-                      }}
+                      onDelete={() => setTimelineCategories(timelineCategories.filter((_, i) => i !== index))}
                     />
                   ))}
                 </div>
               </SortableContext>
             </DndContext>
-            
+
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                setTimelineCategories([
-                  ...timelineCategories,
-                  { id: crypto.randomUUID(), name: "New Phase", days: 1 }
-                ]);
-              }}
+              onClick={() => setTimelineCategories([...timelineCategories, { id: crypto.randomUUID(), name: "New Phase", days: 1 }])}
             >
               <Plus className="mr-2 h-4 w-4" />
               Add Phase

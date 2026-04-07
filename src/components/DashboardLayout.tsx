@@ -1,22 +1,11 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarProvider,
-  SidebarTrigger,
-  useSidebar,
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
+  SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
+  SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 import { Building2, Users, Wrench, LogOut, FolderKanban, UserCog, Settings, Package, CalendarDays } from "lucide-react";
 
@@ -33,38 +22,13 @@ const navItems = [
 
 function AppSidebar() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile, logout } = useAuth();
   const { state } = useSidebar();
-  const [tenantName, setTenantName] = useState("Renoway");
 
-  useEffect(() => {
-    const fetchTenantName = async () => {
-      if (!user) return;
-      
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (profile?.tenant_id) {
-        const { data: tenant } = await supabase
-          .from("tenants")
-          .select("name")
-          .eq("id", profile.tenant_id)
-          .single();
-
-        if (tenant?.name) {
-          setTenantName(tenant.name);
-        }
-      }
-    };
-
-    fetchTenantName();
-  }, [user]);
+  const tenantName = profile?.tenant?.name || "Renoway";
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await logout();
     navigate("/auth");
   };
 
@@ -96,9 +60,7 @@ function AppSidebar() {
                         className={({ isActive }) =>
                           cn(
                             "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                            isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "hover:bg-accent"
+                            isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                           )
                         }
                       >
@@ -138,7 +100,6 @@ function AppSidebar() {
 
 const DashboardLayout = () => {
   const location = useLocation();
-
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -152,7 +113,6 @@ const DashboardLayout = () => {
               </h1>
             </div>
           </header>
-
           <main className="flex-1 p-6">
             <Outlet />
           </main>
