@@ -14,6 +14,7 @@ export interface Profile {
   id: string;
   email: string;
   tenant: Tenant;
+  must_change_password: boolean;
   created_at: string;
 }
 

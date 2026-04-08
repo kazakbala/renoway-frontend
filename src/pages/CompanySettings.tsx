@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, X } from "lucide-react";
 import { useDropzone } from "react-dropzone";
@@ -21,6 +22,10 @@ const CompanySettings = () => {
   const [bankDetails, setBankDetails] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     if (profile?.tenant) {
@@ -86,6 +91,32 @@ const CompanySettings = () => {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Error", description: "Passwords do not match.", variant: "destructive" });
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const { data } = await api.post("/auth/change-password/", {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      localStorage.setItem("access_token", data.access);
+      localStorage.setItem("refresh_token", data.refresh);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Success", description: "Password changed successfully." });
+    } catch (e: any) {
+      const msg = e.response?.data?.error || "Failed to change password.";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -162,6 +193,36 @@ const CompanySettings = () => {
 
             <Button type="submit" disabled={saving}>
               {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : "Save Changes"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Change Password</CardTitle>
+          <CardDescription>Update your account password</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="current-password">Current password</Label>
+              <Input id="current-password" type="password" value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)} required />
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New password</Label>
+              <Input id="new-password" type="password" placeholder="Min. 8 characters"
+                value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                required minLength={8} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm new password</Label>
+              <Input id="confirm-password" type="password" value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)} required />
+            </div>
+            <Button type="submit" disabled={changingPassword}>
+              {changingPassword ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Changing...</> : "Change Password"}
             </Button>
           </form>
         </CardContent>

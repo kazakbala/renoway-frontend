@@ -16,6 +16,7 @@ import CompanySettings from "./pages/CompanySettings";
 import Meetings from "./pages/Meetings";
 import DashboardLayout from "@/components/DashboardLayout";
 import NotFound from "./pages/NotFound";
+import ChangePasswordModal from "@/components/ChangePasswordModal";
 
 const queryClient = new QueryClient();
 
@@ -34,7 +35,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/auth" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <ChangePasswordModal />
+      {children}
+    </>
+  );
 };
 
 const App = () => (
