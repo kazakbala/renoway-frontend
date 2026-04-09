@@ -141,9 +141,15 @@ const ProjectForm = () => {
 
     setClients(clientsRes.data.results ?? clientsRes.data);
     setRoomTypes(roomTypesRes.data.results ?? roomTypesRes.data);
-    setAllWorks(worksRes.data.results ?? worksRes.data);
+    setAllWorks((worksRes.data.results ?? worksRes.data).map((w: any) => ({
+      ...w,
+      price_per_unit: parseFloat(w.price_per_unit) || 0,
+    })));
     setCategories(categoriesRes.data.results ?? categoriesRes.data);
-    setAllMaterials(materialsRes.data.results ?? materialsRes.data);
+    setAllMaterials((materialsRes.data.results ?? materialsRes.data).map((m: any) => ({
+      ...m,
+      price_per_unit: parseFloat(m.price_per_unit) || 0,
+    })));
 
     if (id) {
       try {
@@ -168,8 +174,8 @@ const ProjectForm = () => {
           works: room.works.map((rw: any) => ({
             work_id: rw.work,
             is_selected: rw.is_selected,
-            quantity: rw.quantity,
-            custom_price_per_unit: rw.custom_price_per_unit,
+            quantity: parseFloat(rw.quantity) || 0,
+            custom_price_per_unit: rw.custom_price_per_unit != null ? parseFloat(rw.custom_price_per_unit) : null,
             custom_name: rw.custom_name,
           })),
         }));
@@ -179,7 +185,7 @@ const ProjectForm = () => {
         const materialsData: ProjectMaterial[] = project.materials.map((pm: any) => ({
           id: pm.id,
           material_id: pm.material,
-          quantity: pm.quantity,
+          quantity: parseFloat(pm.quantity) || 0,
         }));
         setProjectMaterials(materialsData);
         setExistingMaterialIds(project.materials.map((m: any) => m.id));
